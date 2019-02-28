@@ -98,7 +98,7 @@ Here are sample steps to achieve this:
     export CXX=clang++-5.0
     export CFLAGS="-O3 -g1 -fno-omit-frame-pointer"
     export CXXFLAGS="$CFLAGS -stdlib=libc++ -isystem /usr/include/libcxxabi"
-    git clone https://github.com/BlocksafeHoldingsInc/HCNet-Core
+    git clone https://github.com/HashCash-Consultants/HCNet-Core
     cd HCNet-Core/
     ./autogen.sh && ./configure && make -j6
 
