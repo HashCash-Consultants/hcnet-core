@@ -86,7 +86,7 @@ class LedgerManager
     static std::string ledgerAbbrev(LedgerHeader const& header);
     static std::string ledgerAbbrev(LedgerHeader const& header,
                                     uint256 const& hash);
-    static std::string ledgerAbbrev(LedgerHeaderHistoryEntry he);
+    static std::string ledgerAbbrev(LedgerHeaderHistoryEntry const& he);
 
     // Factory
     static std::unique_ptr<LedgerManager> create(Application& app);
@@ -147,9 +147,8 @@ class LedgerManager
     // that should be replayed. Normally this happens automatically when
     // LedgerManager detects it is desynchronized from SCP's consensus ledger.
     // This method is present in the public interface to permit testing and
-    // command line catchups.
-    virtual void startCatchup(CatchupConfiguration configuration,
-                              bool manualCatchup) = 0;
+    // offline catchups.
+    virtual void startCatchup(CatchupConfiguration configuration) = 0;
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of

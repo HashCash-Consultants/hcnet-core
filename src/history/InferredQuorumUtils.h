@@ -11,7 +11,8 @@ namespace HcNet
 
 class Config;
 
-void checkQuorumIntersection(Config cfg);
-void inferQuorumAndWrite(Config cfg);
-void writeQuorumGraph(Config cfg, std::string const& outputFile);
+void checkQuorumIntersection(Config const& cfg, uint32_t ledgerNum);
+void inferQuorumAndWrite(Config const& cfg, uint32_t ledgerNum);
+void writeQuorumGraph(Config const& cfg, std::string const& outputFile,
+                      uint32_t ledgerNum);
 }

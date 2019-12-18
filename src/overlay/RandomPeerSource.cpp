@@ -60,7 +60,8 @@ peerTypeToFilter(PeerType peerType)
 PeerQuery
 RandomPeerSource::nextAttemptCutoff(PeerType requireExactType)
 {
-    return {true, -1, peerTypeToFilter(requireExactType)};
+    return {true, Config::REALLY_DEAD_NUM_FAILURES_CUTOFF,
+            peerTypeToFilter(requireExactType)};
 }
 
 RandomPeerSource::RandomPeerSource(PeerManager& peerManager,

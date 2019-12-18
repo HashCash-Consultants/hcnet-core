@@ -17,6 +17,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
+#ifdef __FreeBSD__
+#include <netinet/in.h>
+#endif
 
 #include "medida/metrics_registry.h"
 #include "medida/reporting/util.h"
@@ -209,6 +212,7 @@ void CollectdReporter::Impl::Process(Meter& meter) {
 
 void CollectdReporter::Impl::Process(Histogram& histogram) {
   auto snapshot = histogram.GetSnapshot();
+  double count = histogram.count();
   AddPart(kType, "medida_histogram");
   AddPart(kTypeInstance, current_instance_);
   AddValues({
@@ -222,12 +226,18 @@ void CollectdReporter::Impl::Process(Histogram& histogram) {
     {kGauge, snapshot.get98thPercentile()},
     {kGauge, snapshot.get99thPercentile()},
     {kGauge, snapshot.get999thPercentile()},
+    // Put 'sum', 'count' on the end as it seems clients are assumed to
+    // be accessing these metrics by position and we do not
+    // want to break them.
+    {kGauge, histogram.sum()},
+    {kGauge, count},
   });
 }
 
 
 void CollectdReporter::Impl::Process(Timer& timer) {
   auto snapshot = timer.GetSnapshot();
+  double count = timer.count();
   AddPart(kType, "medida_timer");
   AddPart(kTypeInstance, current_instance_ + "." + FormatRateUnit(timer.duration_unit()));
   AddValues({
@@ -241,6 +251,11 @@ void CollectdReporter::Impl::Process(Timer& timer) {
     {kGauge, snapshot.get98thPercentile()},
     {kGauge, snapshot.get99thPercentile()},
     {kGauge, snapshot.get999thPercentile()},
+    // Put 'sum', 'count' on the end as it seems clients are assumed to
+    // be accessing these metrics by position and we do not
+    // want to break them.
+    {kGauge, timer.sum()},
+    {kGauge, count},
   });
 }
 

@@ -14,6 +14,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
+#include <algorithm>
 #include <functional>
 
 namespace HcNet
@@ -211,11 +212,11 @@ NominationProtocol::updateRoundLeaders()
     SCPQuorumSet myQSet = mSlot.getLocalNode()->getQuorumSet();
 
     // initialize priority with value derived from self
-    mRoundLeaders.clear();
+    std::set<NodeID> newRoundLeaders;
     auto localID = mSlot.getLocalNode()->getNodeID();
     normalizeQSet(myQSet, &localID);
 
-    mRoundLeaders.insert(localID);
+    newRoundLeaders.insert(localID);
     uint64 topPriority = getNodePriority(localID, myQSet);
 
     LocalNode::forAllNodes(myQSet, [&](NodeID const& cur) {
@@ -223,20 +224,25 @@ NominationProtocol::updateRoundLeaders()
         if (w > topPriority)
         {
             topPriority = w;
-            mRoundLeaders.clear();
+            newRoundLeaders.clear();
         }
         if (w == topPriority && w > 0)
         {
-            mRoundLeaders.insert(cur);
+            newRoundLeaders.insert(cur);
         }
     });
-    CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
+    // expand mRoundLeaders with the newly computed leaders
+    mRoundLeaders.insert(newRoundLeaders.begin(), newRoundLeaders.end());
     if (Logging::logDebug("SCP"))
+    {
+        CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << newRoundLeaders.size()
+                           << " -> " << mRoundLeaders.size();
         for (auto const& rl : mRoundLeaders)
         {
             CLOG(DEBUG, "SCP")
                 << "    leader " << mSlot.getSCPDriver().toShortString(rl);
         }
+    }
 }
 
 uint64
@@ -272,7 +278,9 @@ NominationProtocol::getNodePriority(NodeID const& nodeID,
         w = LocalNode::getNodeWeight(nodeID, qset);
     }
 
-    if (hashNode(false, nodeID) < w)
+    // if w > 0; w is inclusive here as
+    // 0 <= hashNode <= UINT64_MAX
+    if (w > 0 && hashNode(false, nodeID) <= w)
     {
         res = hashNode(true, nodeID);
     }
@@ -435,7 +443,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
         }
         else
         {
-            CLOG(DEBUG, "SCP")
+            CLOG(TRACE, "SCP")
                 << "NominationProtocol: message didn't pass sanity check";
         }
     }
@@ -477,6 +485,7 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
 
     Value nominatingValue;
 
+    // if we're leader, add our value
     if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
         mRoundLeaders.end())
     {
@@ -487,20 +496,18 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
         }
         nominatingValue = value;
     }
-    else
+    // add a few more values from other leaders
+    for (auto const& leader : mRoundLeaders)
     {
-        for (auto const& leader : mRoundLeaders)
+        auto it = mLatestNominations.find(leader);
+        if (it != mLatestNominations.end())
         {
-            auto it = mLatestNominations.find(leader);
-            if (it != mLatestNominations.end())
+            nominatingValue = getNewValueFromNomination(
+                it->second.statement.pledges.nominate());
+            if (!nominatingValue.empty())
             {
-                nominatingValue = getNewValueFromNomination(
-                    it->second.statement.pledges.nominate());
-                if (!nominatingValue.empty())
-                {
-                    mVotes.insert(nominatingValue);
-                    updated = true;
-                }
+                mVotes.insert(nominatingValue);
+                updated = true;
             }
         }
     }
@@ -533,6 +540,12 @@ void
 NominationProtocol::stopNomination()
 {
     mNominationStarted = false;
+}
+
+std::set<NodeID> const&
+NominationProtocol::getLeaders() const
+{
+    return mRoundLeaders;
 }
 
 Json::Value
@@ -603,5 +616,16 @@ NominationProtocol::getCurrentState() const
         }
     }
     return res;
+}
+
+SCPEnvelope const*
+NominationProtocol::getLatestMessage(NodeID const& id) const
+{
+    auto it = mLatestNominations.find(id);
+    if (it != mLatestNominations.end())
+    {
+        return &it->second;
+    }
+    return nullptr;
 }
 }

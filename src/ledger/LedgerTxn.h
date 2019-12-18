@@ -166,11 +166,53 @@
 namespace HcNet
 {
 
+// A heuristic number that is used to batch together groups of
+// LedgerEntries for bulk commit at the database interface layer. For sake
+// of mechanical sympathy with said batching, one should attempt to group
+// incoming work (if it is otherwise unbounded) into transactions of the
+// same number of entries. It does no semantic harm to pick a different
+// size, just fail to batch quite as evenly.
+static const size_t LEDGER_ENTRY_BATCH_COMMIT_SIZE = 0xfff;
+
+// If a LedgerTxn has had an eraseWithoutLoading call, the usual "exact"
+// level of consistency that a LedgerTxn maintains with the database will
+// be very slightly weakened: one or more "erase" events may be in
+// memory that would normally (in the "loading" case) have been annihilated
+// on contact with an in-memory insert.
+//
+// This "extra deletes" inconsistency is mostly harmless, it only has two
+// effects:
+//
+//    - LedgerTxnDeltas, LedgerChanges and DeadEntries should not be
+//      calculated from a LedgerTxn in this state (since it will report
+//      extra deletes for keys that don't exist in the database, were
+//      added-then-deleted in the current txn). LiveEntries can be
+//      calculated from a LedgerTxn with EXTRA_DELETES, however: the
+//      live entries that should have been annihilated will be judged
+//      dead, and the same set of live entries will be returned as would
+//      be in the loading case.
+//
+//    - The count of rows in the database effected when applying the
+//      "erase" events might not be the expected number, so the consistency
+//      check we do there should be relaxed.
+//
+// Neither issue happens when a createOrUpdateWithoutLoading call occurs,
+// as there's no assumption that a pending _delete_ will be annihilated
+// in-memory by a create: delete-then-create is stored the same way as
+// create, which is stored the same way as update. Further, when writing to
+// the database, the row count is the same whether a row is inserted or
+// updated.
+enum class LedgerTxnConsistency
+{
+    EXACT,
+    EXTRA_DELETES
+};
+
 class Database;
 struct InflationVotes;
 struct LedgerEntry;
 struct LedgerKey;
-class LedgerRange;
+struct LedgerRange;
 
 bool isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry);
 
@@ -219,6 +261,8 @@ class EntryIterator
   public:
     EntryIterator(std::unique_ptr<AbstractImpl>&& impl);
 
+    EntryIterator(EntryIterator const& other);
+
     EntryIterator(EntryIterator&& other);
 
     EntryIterator& operator++();
@@ -254,7 +298,7 @@ class AbstractLedgerTxnParent
     // commitChild and rollbackChild are called by a child AbstractLedgerTxn
     // to trigger an atomic commit or an atomic rollback of the data stored in
     // the child.
-    virtual void commitChild(EntryIterator iter) = 0;
+    virtual void commitChild(EntryIterator iter, LedgerTxnConsistency cons) = 0;
     virtual void rollbackChild() = 0;
 
     // getAllOffers, getBestOffer, and getOffersByAccountAndAsset are used to
@@ -354,7 +398,19 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual LedgerTxnEntry load(LedgerKey const& key) = 0;
     virtual ConstLedgerTxnEntry loadWithoutRecord(LedgerKey const& key) = 0;
 
-    // getChanges, getDelta, getDeadEntries, and getLiveEntries are used to
+    // Somewhat unsafe, non-recommended access methods: for use only during
+    // bulk-loading as in catchup from buckets. These methods set an entry
+    // to a new live (or dead) value in the transaction _without consulting
+    // with the database_ about the current state of it.
+    //
+    // REITERATED WARNING: do _not_ call these methods from normal online
+    // transaction processing code, or any code that is sensitive to the
+    // state of the database. These are only here for clobbering it with
+    // new data.
+    virtual void createOrUpdateWithoutLoading(LedgerEntry const& entry) = 0;
+    virtual void eraseWithoutLoading(LedgerKey const& key) = 0;
+
+    // getChanges, getDelta, and getAllEntries are used to
     // extract information about changes contained in the AbstractLedgerTxn
     // in different formats. These functions also cause the AbstractLedgerTxn
     // to enter the sealed state, simultaneously updating last modified if
@@ -367,15 +423,17 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     to the LedgerHeader) in a format convenient for answering queries
     //     about how specific entries and the header have changed. To be used
     //     for invariants.
-    // - getDeadEntries and getLiveEntries
-    //     getDeadEntries extracts a list of keys that are now dead, whereas
-    //     getLiveEntries extracts a list of entries that were recorded and
-    //     are still alive. To be inserted into the BucketList.
+    // - getAllEntries
+    //     extracts a list of keys that were created (init), updated (live) or
+    //     deleted (dead) in this AbstractLedgerTxn. All these are to be
+    //     inserted into the BucketList.
+    //
     // All of these functions throw if the AbstractLedgerTxn has a child.
     virtual LedgerEntryChanges getChanges() = 0;
     virtual LedgerTxnDelta getDelta() = 0;
-    virtual std::vector<LedgerKey> getDeadEntries() = 0;
-    virtual std::vector<LedgerEntry> getLiveEntries() = 0;
+    virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
+                               std::vector<LedgerEntry>& liveEntries,
+                               std::vector<LedgerKey>& deadEntries) = 0;
 
     // loadAllOffers, loadBestOffer, and loadOffersByAccountAndAsset are used to
     // handle some specific queries related to Offers. These functions are built
@@ -433,7 +491,7 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     void commit() override;
 
-    void commitChild(EntryIterator iter) override;
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
 
     LedgerTxnEntry create(LedgerEntry const& entry) override;
 
@@ -446,8 +504,6 @@ class LedgerTxn final : public AbstractLedgerTxn
                  std::unordered_set<LedgerKey>& exclude) override;
 
     LedgerEntryChanges getChanges() override;
-
-    std::vector<LedgerKey> getDeadEntries() override;
 
     LedgerTxnDelta getDelta() override;
 
@@ -463,12 +519,17 @@ class LedgerTxn final : public AbstractLedgerTxn
     std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
-    std::vector<LedgerEntry> getLiveEntries() override;
+    void getAllEntries(std::vector<LedgerEntry>& initEntries,
+                       std::vector<LedgerEntry>& liveEntries,
+                       std::vector<LedgerKey>& deadEntries) override;
 
     std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const override;
 
     LedgerTxnEntry load(LedgerKey const& key) override;
+
+    void createOrUpdateWithoutLoading(LedgerEntry const& entry) override;
+    void eraseWithoutLoading(LedgerKey const& key) override;
 
     std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;
 
@@ -496,14 +557,14 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     std::unique_ptr<Impl> const mImpl;
 
   public:
-    explicit LedgerTxnRoot(Database& db, size_t entryCacheSize = 4096,
-                           size_t bestOfferCacheSize = 64);
+    explicit LedgerTxnRoot(Database& db, size_t entryCacheSize,
+                           size_t bestOfferCacheSize, size_t prefetchBatchSize);
 
     virtual ~LedgerTxnRoot();
 
     void addChild(AbstractLedgerTxn& child) override;
 
-    void commitChild(EntryIterator iter) override;
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
 
     uint64_t countObjects(LedgerEntryType let) const;
     uint64_t countObjects(LedgerEntryType let,
@@ -515,6 +576,10 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropData();
     void dropOffers();
     void dropTrustLines();
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    void resetForFuzzer();
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 
     std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
 
@@ -535,5 +600,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     getNewestVersion(LedgerKey const& key) const override;
 
     void rollbackChild() override;
+
+    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+    double getPrefetchHitRate() const;
 };
 }

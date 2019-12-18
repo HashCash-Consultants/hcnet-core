@@ -2,6 +2,7 @@
 
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketMergeMap.h"
 #include "overlay/HcNetXDR.h"
 
 #include <map>
@@ -45,10 +46,33 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
+    MergeCounters mMergeCounters;
+
+    // Records bucket-merges that are currently _live_ in some FutureBucket, in
+    // the sense of either running, or finished (with or without the
+    // FutureBucket being resolved). Entries in this map will be cleared when
+    // the FutureBucket is _cleared_ (typically when the owning BucketList level
+    // is committed).
+    std::unordered_map<MergeKey, std::shared_future<std::shared_ptr<Bucket>>>
+        mLiveFutures;
+
+    // Records bucket-merges that are _finished_, i.e. have been adopted as
+    // (possibly redundant) bucket files. This is a "weak" (bi-multi-)map of
+    // hashes, that does not count towards std::shared_ptr refcounts, i.e. does
+    // not keep either the output bucket or any of its input buckets
+    // alive. Needs to be queried and updated on mSharedBuckets GC events.
+    BucketMergeMap mFinishedMerges;
 
     std::set<Hash> getReferencedBuckets() const;
     void cleanupStaleFiles();
     void cleanDir();
+    bool renameBucket(std::string const& src, std::string const& dst);
+
+#ifdef BUILD_TESTS
+    bool mUseFakeTestValuesForNextClose{false};
+    uint32_t mFakeTestProtocolVersion;
+    uint256 mFakeTestBucketListHash;
+#endif
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
@@ -64,22 +88,43 @@ class BucketManagerImpl : public BucketManager
     std::string const& getBucketDir() override;
     BucketList& getBucketList() override;
     medida::Timer& getMergeTimer() override;
+    MergeCounters readMergeCounters() override;
+    void incrMergeCounters(MergeCounters const&) override;
     TmpDirManager& getTmpDirManager() override;
-    std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
-                                              uint256 const& hash,
-                                              size_t nObjects,
-                                              size_t nBytes) override;
+    std::shared_ptr<Bucket>
+    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
+                      size_t nObjects, size_t nBytes,
+                      MergeKey* mergeKey = nullptr) override;
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
+
+    std::shared_future<std::shared_ptr<Bucket>>
+    getMergeFuture(MergeKey const& key) override;
+    void putMergeFuture(MergeKey const& key,
+                        std::shared_future<std::shared_ptr<Bucket>>) override;
+#ifdef BUILD_TESTS
+    void clearMergeFuturesForTesting() override;
+#endif
 
     void forgetUnreferencedBuckets() override;
     void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
 
+#ifdef BUILD_TESTS
+    // Install a fake/assumed ledger version and bucket list hash to use in next
+    // call to addBatch and snapshotLedger. This interface exists only for
+    // testing in a specific type of history replay.
+    void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
+                                              uint256 const& hash) override;
+#endif
+
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
-    void assumeState(HistoryArchiveState const& has) override;
+    void assumeState(HistoryArchiveState const& has,
+                     uint32_t maxProtocolVersion) override;
     void shutdown() override;
 };
 

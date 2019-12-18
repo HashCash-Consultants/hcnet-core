@@ -21,8 +21,8 @@ StringMaker<HcNet::OfferState>::convert(HcNet::OfferState const& os)
 std::string
 StringMaker<HcNet::CatchupRange>::convert(HcNet::CatchupRange const& cr)
 {
-    return fmt::format("[{}..{}], applyBuckets: {}", cr.first.first(),
-                       cr.first.last(), cr.second);
+    return fmt::format("[{}..{}], applyBuckets: {}", cr.mLedgers.mFirst,
+                       cr.getLast(), cr.getBucketApplyLedger());
 }
 
 std::string

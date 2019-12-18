@@ -24,8 +24,9 @@ class InflationOpFrame : public OperationFrame
     InflationOpFrame(Operation const& op, OperationResult& res,
                      TransactionFrame& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx) override;
+    bool doCheckValid(uint32_t ledgerVersion) override;
+    bool isVersionSupported(uint32_t protocolVersion) const override;
 
     static InflationResultCode
     getInnerCode(OperationResult const& res)

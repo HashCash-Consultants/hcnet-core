@@ -39,20 +39,9 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
           mSnapDir, HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
 
 {
-    makeLive();
-}
-
-void
-StateSnapshot::makeLive()
-{
-    for (uint32_t i = 0;
-         i < static_cast<uint32>(mLocalState.currentBuckets.size()); i++)
+    if (mLocalState.currentBuckets.size() != BucketList::kNumLevels)
     {
-        auto& hb = mLocalState.currentBuckets[i];
-        if (hb.next.hasHashes() && !hb.next.isLive())
-        {
-            hb.next.makeLive(mApp, BucketList::keepDeadEntries(i));
-        }
+        throw std::runtime_error("Invalid HAS: malformed bucketlist");
     }
 }
 
@@ -75,7 +64,9 @@ StateSnapshot::writeHistoryBlocks() const
     uint32_t begin, count;
     size_t nHeaders;
     {
-        XDROutputFileStream ledgerOut, txOut, txResultOut, scpHistory;
+        bool doFsync = !mApp.getConfig().DISABLE_XDR_FSYNC;
+        XDROutputFileStream ledgerOut(doFsync), txOut(doFsync),
+            txResultOut(doFsync), scpHistory(doFsync);
         ledgerOut.open(mLedgerSnapFile->localPath_nogz());
         txOut.open(mTransactionSnapFile->localPath_nogz());
         txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
@@ -139,5 +130,31 @@ StateSnapshot::writeHistoryBlocks() const
     }
 
     return true;
+}
+
+std::vector<std::shared_ptr<FileTransferInfo>>
+StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
+{
+    std::vector<std::shared_ptr<FileTransferInfo>> files{};
+    auto addIfExists = [&](std::shared_ptr<FileTransferInfo> const& f) {
+        if (f && fs::exists(f->localPath_nogz()))
+        {
+            files.push_back(f);
+        }
+    };
+
+    addIfExists(mLedgerSnapFile);
+    addIfExists(mTransactionSnapFile);
+    addIfExists(mTransactionResultSnapFile);
+    addIfExists(mSCPHistorySnapFile);
+
+    for (auto const& hash : mLocalState.differingBuckets(other))
+    {
+        auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+        assert(b);
+        addIfExists(std::make_shared<FileTransferInfo>(*b));
+    }
+
+    return files;
 }
 }

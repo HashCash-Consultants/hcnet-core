@@ -108,10 +108,12 @@ void ConsoleReporter::Impl::Process(Meter& meter) {
 
 void ConsoleReporter::Impl::Process(Histogram& histogram) {
   auto snapshot = histogram.GetSnapshot();
-  out_ << "             min = " << histogram.min() << std::endl
+  out_ << "           count = " << histogram.count() << std::endl
+       << "             min = " << histogram.min() << std::endl
        << "             max = " << histogram.max() << std::endl
        << "            mean = " << histogram.mean() << std::endl
        << "          stddev = " << histogram.std_dev() << std::endl
+       << "             sum = " << histogram.sum() << std::endl
        << "          median = " << snapshot.getMedian() << std::endl
        << "             75% = " << snapshot.get75thPercentile() << std::endl
        << "             95% = " << snapshot.get95thPercentile() << std::endl
@@ -134,6 +136,7 @@ void ConsoleReporter::Impl::Process(Timer& timer) {
        << "             max = " << timer.max() << unit << std::endl
        << "            mean = " << timer.mean() << unit << std::endl
        << "          stddev = " << timer.std_dev() << unit << std::endl
+       << "             sum = " << timer.sum() << unit << std::endl
        << "          median = " << snapshot.getMedian() << unit << std::endl
        << "             75% = " << snapshot.get75thPercentile() << unit << std::endl
        << "             95% = " << snapshot.get95thPercentile() << unit << std::endl

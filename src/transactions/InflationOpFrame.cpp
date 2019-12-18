@@ -28,7 +28,7 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-InflationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+InflationOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     auto& lh = header.current();
@@ -117,9 +117,15 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-InflationOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+InflationOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     return true;
+}
+
+bool
+InflationOpFrame::isVersionSupported(uint32_t protocolVersion) const
+{
+    return protocolVersion < 12;
 }
 
 ThresholdLevel

@@ -14,7 +14,7 @@
 namespace HcNet
 {
 
-PeerBareAddress::PeerBareAddress() : mType{Type::EMPTY}
+PeerBareAddress::PeerBareAddress() : mType{Type::EMPTY}, mPort{0}
 {
 }
 
@@ -24,10 +24,6 @@ PeerBareAddress::PeerBareAddress(std::string ip, unsigned short port)
     if (mIP.empty())
     {
         throw std::runtime_error("Cannot create PeerBareAddress with empty ip");
-    }
-    if (mPort == 0)
-    {
-        throw std::runtime_error("Cannot create PeerBareAddress with port 0");
     }
 }
 
@@ -70,7 +66,7 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
         toResolve = m[2].str();
     }
 
-    asio::ip::tcp::resolver resolver(app.getWorkerIOService());
+    asio::ip::tcp::resolver resolver(app.getWorkerIOContext());
     asio::ip::tcp::resolver::query query(toResolve, "", resolveflags);
 
     asio::error_code ec;

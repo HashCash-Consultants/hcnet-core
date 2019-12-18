@@ -8,13 +8,22 @@
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "main/HcNetCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "main/fuzz.h"
 #include "scp/QuorumSetUtils.h"
-#include "test/test.h"
 #include "util/Logging.h"
 #include "util/optional.h"
+
+#include "catchup/simulation/ApplyTransactionsWork.h"
+#include "historywork/BatchDownloadWork.h"
+#include "work/WorkScheduler.h"
+
+#ifdef BUILD_TESTS
+#include "test/Fuzzer.h"
+#include "test/fuzz.h"
+#include "test/test.h"
+#endif
 
 #include <iostream>
 #include <lib/clara.hpp>
@@ -156,6 +165,13 @@ fileNameParser(std::string& string)
 }
 
 clara::Opt
+processIDParser(int& num)
+{
+    return clara::Opt{num, "PROCESS-ID"}["--process_id"](
+        "for spawning multiple instances in fuzzing parallelization");
+}
+
+clara::Opt
 outputFileParser(std::string& string)
 {
     return clara::Opt{string, "FILE-NAME"}["--output-file"]("output file");
@@ -187,6 +203,13 @@ disableBucketGCParser(bool& disableBucketGC)
 {
     return clara::Opt{disableBucketGC}["--disable-bucket-gc"](
         "keeps all, even old, buckets on disk");
+}
+
+clara::Opt
+historyLedgerNumber(uint32_t& ledgerNum)
+{
+    return clara::Opt{ledgerNum, "HISTORY-LEDGER"}["--history-ledger"](
+        "specify a ledger number to examine in history");
 }
 
 clara::Parser
@@ -260,7 +283,8 @@ parseCatchup(std::string const& catchup)
     try
     {
         return {parseLedger(catchup.substr(0, separatorIndex)),
-                parseLedgerCount(catchup.substr(separatorIndex + 1))};
+                parseLedgerCount(catchup.substr(separatorIndex + 1)),
+                CatchupConfiguration::Mode::OFFLINE};
     }
     catch (std::exception&)
     {
@@ -383,11 +407,6 @@ CommandLine::adjustCommandLine(clara::detail::Args const& args)
 optional<CommandLine::Command>
 CommandLine::selectCommand(std::string const& commandName)
 {
-    if (commandName.empty())
-    {
-        return nullopt<Command>();
-    }
-
     auto command = std::find_if(
         std::begin(mCommands), std::end(mCommands),
         [&](Command const& command) { return command.name() == commandName; });
@@ -466,6 +485,17 @@ runCatchup(CommandLineArgs const& args)
             config.setNoListen();
             config.DISABLE_BUCKET_GC = disableBucketGC;
 
+            if (config.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
+                config.AUTOMATIC_MAINTENANCE_COUNT > 0)
+            {
+                // If the user did not _disable_ maintenance, turn the dial up
+                // to be much more aggressive about running maintenance during a
+                // bulk catchup, otherwise the DB is likely to overflow with
+                // unwanted history.
+                config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{30};
+                config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
+            }
+
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto app = Application::create(clock, config, false);
             Json::Value catchupInfo;
@@ -497,11 +527,14 @@ int
 runCheckQuorum(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        checkQuorumIntersection(configOption.getConfig());
-        return 0;
-    });
+    uint32_t ledgerNum = 0;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), historyLedgerNumber(ledgerNum)},
+        [&] {
+            checkQuorumIntersection(configOption.getConfig(), ledgerNum);
+            return 0;
+        });
 }
 
 int
@@ -545,33 +578,6 @@ runForceSCP(CommandLineArgs const& args)
 }
 
 int
-runFuzz(CommandLineArgs const& args)
-{
-    el::Level logLevel{el::Level::Info};
-    std::vector<std::string> metrics;
-    std::string fileName;
-
-    return runWithHelp(args,
-                       {logLevelParser(logLevel), metricsParser(metrics),
-                        fileNameParser(fileName)},
-                       [&] {
-                           fuzz(fileName, logLevel, metrics);
-                           return 0;
-                       });
-}
-
-int
-runGenFuzz(CommandLineArgs const& args)
-{
-    std::string fileName;
-
-    return runWithHelp(args, {fileNameParser(fileName)}, [&] {
-        genfuzz(fileName);
-        return 0;
-    });
-}
-
-int
 runGenSeed(CommandLineArgs const& args)
 {
     return runWithHelp(args, {}, [&] {
@@ -600,22 +606,12 @@ int
 runInferQuorum(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        inferQuorumAndWrite(configOption.getConfig());
-        return 0;
-    });
-}
-
-int
-runLoadXDR(CommandLineArgs const& args)
-{
-    CommandLine::ConfigOption configOption;
-    std::string xdr;
-
+    uint32_t ledgerNum = 0;
     return runWithHelp(
-        args, {configurationParser(configOption), fileNameParser(xdr)}, [&] {
-            loadXdr(configOption.getConfig(), xdr);
+        args,
+        {configurationParser(configOption), historyLedgerNumber(ledgerNum)},
+        [&] {
+            inferQuorumAndWrite(configOption.getConfig(), ledgerNum);
             return 0;
         });
 }
@@ -627,6 +623,20 @@ runNewDB(CommandLineArgs const& args)
 
     return runWithHelp(args, {configurationParser(configOption)}, [&] {
         initializeDatabase(configOption.getConfig());
+        return 0;
+    });
+}
+
+int
+runUpgradeDB(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto cfg = configOption.getConfig();
+        VirtualClock clock;
+        cfg.setNoListen();
+        Application::create(clock, cfg, false);
         return 0;
     });
 }
@@ -707,6 +717,7 @@ run(CommandLineArgs const& args)
                            catch (std::exception& e)
                            {
                                LOG(FATAL) << "Got an exception: " << e.what();
+                               LOG(FATAL) << REPORT_INTERNAL_BUG;
                                return 1;
                            }
                            // run outside of catch block so that we properly
@@ -748,7 +759,7 @@ runSignTransaction(CommandLineArgs const& args)
 int
 runVersion(CommandLineArgs const&)
 {
-    std::cout << STELLAR_CORE_VERSION << std::endl;
+    std::cout << HcNet_CORE_VERSION << std::endl;
     return 0;
 }
 
@@ -757,16 +768,171 @@ runWriteQuorum(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string outputFile;
-
+    uint32_t ledgerNum = 0;
     return runWithHelp(
-        args, {configurationParser(configOption), outputFileParser(outputFile)},
+        args,
+        {configurationParser(configOption), historyLedgerNumber(ledgerNum),
+         outputFileParser(outputFile)},
         [&] {
-            writeQuorumGraph(configOption.getConfig(), outputFile);
+            writeQuorumGraph(configOption.getConfig(), outputFile, ledgerNum);
             return 0;
         });
 }
 
-optional<int>
+#ifdef BUILD_TESTS
+int
+runLoadXDR(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string xdr;
+
+    return runWithHelp(
+        args, {configurationParser(configOption), fileNameParser(xdr)}, [&] {
+            loadXdr(configOption.getConfig(), xdr);
+            return 0;
+        });
+}
+
+int
+runRebuildLedgerFromBuckets(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        rebuildLedgerFromBuckets(configOption.getConfig());
+        return 0;
+    });
+}
+
+int
+runSimulate(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    uint32_t opsPerLedger = 0;
+    uint32_t firstLedgerInclusive = 0;
+    uint32_t lastLedgerInclusive = 0;
+    std::string historyArchiveGet;
+
+    auto validateFirstLedger = [&] {
+        if (firstLedgerInclusive == 0)
+        {
+            return "first ledger must not be 0";
+        }
+        else if (firstLedgerInclusive > lastLedgerInclusive)
+        {
+            return "last ledger must not preceed first ledger";
+        }
+        return "";
+    };
+    ParserWithValidation firstLedgerParser{
+        clara::Opt{firstLedgerInclusive, "LEDGER"}["--first-ledger-inclusive"](
+            "first ledger to read from history archive"),
+        validateFirstLedger};
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         clara::Opt{opsPerLedger, "OPS-PER-LEDGER"}["--ops-per-ledger"](
+             "desired number of operations per ledger, will never be less but "
+             "could be up to 100 more"),
+         firstLedgerParser,
+         clara::Opt{lastLedgerInclusive, "LEDGER"}["--last-ledger-inclusive"](
+             "last ledger to read from history archive")},
+        [&] {
+            auto config = configOption.getConfig();
+            config.setNoListen();
+
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto app = Application::create(clock, config, false);
+            app->start();
+
+            LedgerRange lr{firstLedgerInclusive, lastLedgerInclusive};
+            CheckpointRange cr(lr, app->getHistoryManager());
+            TmpDir dir(app->getTmpDirManager().tmpDir("simulate"));
+
+            auto downloadLedgers = std::make_shared<BatchDownloadWork>(
+                *app, cr, HISTORY_FILE_TYPE_LEDGER, dir);
+            auto downloadTransactions = std::make_shared<BatchDownloadWork>(
+                *app, cr, HISTORY_FILE_TYPE_TRANSACTIONS, dir);
+            auto downloadResults = std::make_shared<BatchDownloadWork>(
+                *app, cr, HISTORY_FILE_TYPE_RESULTS, dir);
+            auto apply = std::make_shared<ApplyTransactionsWork>(
+                *app, dir, lr, app->getConfig().NETWORK_PASSPHRASE,
+                opsPerLedger);
+            std::vector<std::shared_ptr<BasicWork>> seq{
+                downloadLedgers, downloadTransactions, downloadResults, apply};
+
+            app->getWorkScheduler().executeWork<WorkSequence>(
+                "download-simulate-seq", seq);
+            return 0;
+        });
+}
+
+ParserWithValidation
+fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
+{
+    auto validateFuzzerMode = [&] {
+        if (iequals(fuzzerModeArg, "overlay"))
+        {
+            fuzzerMode = FuzzerMode::OVERLAY;
+            return "";
+        }
+
+        if (iequals(fuzzerModeArg, "tx"))
+        {
+            fuzzerMode = FuzzerMode::TRANSACTION;
+            return "";
+        }
+
+        return "Unrecognized fuzz mode. Please select a valid mode.";
+    };
+
+    return {clara::Opt{fuzzerModeArg, "FUZZER-MODE"}["--mode"](
+                "set the fuzzer mode. Expected modes: overlay, "
+                "tx. Defaults to overlay."),
+            validateFuzzerMode};
+}
+
+int
+runFuzz(CommandLineArgs const& args)
+{
+    el::Level logLevel{el::Level::Info};
+    std::vector<std::string> metrics;
+    std::string fileName;
+    int processID = 0;
+    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
+    std::string fuzzerModeArg = "overlay";
+
+    return runWithHelp(args,
+                       {logLevelParser(logLevel), metricsParser(metrics),
+                        fileNameParser(fileName), processIDParser(processID),
+                        fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
+                       [&] {
+                           fuzz(fileName, logLevel, metrics, processID,
+                                fuzzerMode);
+                           return 0;
+                       });
+}
+
+int
+runGenFuzz(CommandLineArgs const& args)
+{
+    std::string fileName;
+    FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
+    std::string fuzzerModeArg = "overlay";
+    int processID = 0;
+
+    return runWithHelp(
+        args,
+        {fileNameParser(fileName), fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
+        [&] {
+            FuzzUtils::createFuzzer(processID, fuzzerMode)->genFuzz(fileName);
+            return 0;
+        });
+}
+#endif
+
+int
 handleCommandLine(int argc, char* const* argv)
 {
     auto commandLine = CommandLine{
@@ -774,7 +940,7 @@ handleCommandLine(int argc, char* const* argv)
           "execute catchup from history archives without connecting to "
           "network",
           runCatchup},
-         {"check-quorum", "check quorum intersection from history",
+         {"check-quorum", "check quorum intersection of last network activity",
           runCheckQuorum},
          {"convert-id", "displays ID in all known forms", runConvertId},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
@@ -783,14 +949,11 @@ handleCommandLine(int argc, char* const* argv)
           "the local ledger rather than waiting to hear from the "
           "network",
           runForceSCP},
-         {"fuzz", "run a single fuzz input and exit", runFuzz},
-         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"gen-seed", "generate and print a random node seed", runGenSeed},
          {"http-command", "send a command to local HcNet-core",
           runHttpCommand},
          {"infer-quorum", "print a quorum set inferred from history",
           runInferQuorum},
-         {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},
@@ -812,36 +975,46 @@ handleCommandLine(int argc, char* const* argv)
          {"sign-transaction",
           "add signature to transaction envelope, then quit",
           runSignTransaction},
+         {"upgrade-db", "upgade database schema to current version",
+          runUpgradeDB},
+#ifdef BUILD_TESTS
+         {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
+         {"rebuild-ledger-from-buckets",
+          "rebuild the current database ledger from the bucket list",
+          runRebuildLedgerFromBuckets},
+         {"fuzz", "run a single fuzz input and exit", runFuzz},
+         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
+         {"simulate", "simulate applying ledgers", runSimulate},
          {"test", "execute test suite", runTest},
+#endif
          {"write-quorum", "print a quorum set graph from history",
           runWriteQuorum},
          {"version", "print version information", runVersion}}};
 
-    auto ajustedCommandLine = commandLine.adjustCommandLine({argc, argv});
-    auto command = commandLine.selectCommand(ajustedCommandLine.first);
-    if (!command)
-    {
-        return nullopt<int>();
-    }
+    auto adjustedCommandLine = commandLine.adjustCommandLine({argc, argv});
+    auto command = commandLine.selectCommand(adjustedCommandLine.first);
+    bool didDefaultToHelp = command->name() != adjustedCommandLine.first;
 
     auto exeName = "HcNet-core";
     auto commandName = fmt::format("{0} {1}", exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
-                                ajustedCommandLine.second};
-    if (command->name() == "run")
+                                adjustedCommandLine.second};
+    if (command->name() == "run" || command->name() == "fuzz")
     {
         // run outside of catch block so that we properly capture crashes
-        return make_optional<int>(command->run(args));
+        return command->run(args);
     }
 
     try
     {
-        return make_optional<int>(command->run(args));
+        int res = command->run(args);
+        return didDefaultToHelp ? 1 : res;
     }
     catch (std::exception& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
-        return make_optional<int>(1);
+        LOG(FATAL) << REPORT_INTERNAL_BUG;
+        return 1;
     }
 }
 }

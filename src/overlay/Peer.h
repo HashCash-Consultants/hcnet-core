@@ -25,6 +25,7 @@ typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
 class Application;
 class LoopbackPeer;
+struct OverlayMetrics;
 
 /*
  * Another peer out there that we are connected to
@@ -57,8 +58,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
         IGNORE_WRITE_QUEUE
     };
 
-    static medida::Meter& getByteReadMeter(Application& app);
-    static medida::Meter& getByteWriteMeter(Application& app);
+    enum class DropDirection
+    {
+        REMOTE_DROPPED_US,
+        WE_DROPPED_REMOTE
+    };
 
   protected:
     Application& mApp;
@@ -79,50 +83,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint32_t mRemoteOverlayVersion;
     PeerBareAddress mAddress;
 
+    VirtualClock::time_point mCreationTime;
+
     VirtualTimer mIdleTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
+    VirtualClock::time_point mLastEmpty;
 
-    medida::Meter& mMessageRead;
-    medida::Meter& mMessageWrite;
-    medida::Meter& mByteRead;
-    medida::Meter& mByteWrite;
-    medida::Meter& mErrorRead;
-    medida::Meter& mErrorWrite;
-    medida::Meter& mTimeoutIdle;
-
-    medida::Timer& mRecvErrorTimer;
-    medida::Timer& mRecvHelloTimer;
-    medida::Timer& mRecvAuthTimer;
-    medida::Timer& mRecvDontHaveTimer;
-    medida::Timer& mRecvGetPeersTimer;
-    medida::Timer& mRecvPeersTimer;
-    medida::Timer& mRecvGetTxSetTimer;
-    medida::Timer& mRecvTxSetTimer;
-    medida::Timer& mRecvTransactionTimer;
-    medida::Timer& mRecvGetSCPQuorumSetTimer;
-    medida::Timer& mRecvSCPQuorumSetTimer;
-    medida::Timer& mRecvSCPMessageTimer;
-    medida::Timer& mRecvGetSCPStateTimer;
-
-    medida::Timer& mRecvSCPPrepareTimer;
-    medida::Timer& mRecvSCPConfirmTimer;
-    medida::Timer& mRecvSCPNominateTimer;
-    medida::Timer& mRecvSCPExternalizeTimer;
-
-    medida::Meter& mSendErrorMeter;
-    medida::Meter& mSendHelloMeter;
-    medida::Meter& mSendAuthMeter;
-    medida::Meter& mSendDontHaveMeter;
-    medida::Meter& mSendGetPeersMeter;
-    medida::Meter& mSendPeersMeter;
-    medida::Meter& mSendGetTxSetMeter;
-    medida::Meter& mSendTransactionMeter;
-    medida::Meter& mSendTxSetMeter;
-    medida::Meter& mSendGetSCPQuorumSetMeter;
-    medida::Meter& mSendSCPQuorumSetMeter;
-    medida::Meter& mSendSCPMessageSetMeter;
-    medida::Meter& mSendGetSCPStateMeter;
+    OverlayMetrics& getOverlayMetrics();
 
     bool shouldAbort() const;
     void recvMessage(HcNetMessage const& msg);
@@ -151,6 +119,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
+    void sendError(ErrorCode error, std::string const& message);
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -169,7 +138,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void startIdleTimer();
     void idleTimerExpired(asio::error_code const& error);
-    size_t getIOTimeoutSeconds() const;
+    std::chrono::seconds getIOTimeout() const;
 
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
@@ -187,6 +156,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
+    void sendErrorAndDrop(ErrorCode error, std::string const& message,
+                          DropMode dropMode);
 
     void sendMessage(HcNetMessage const& msg);
 
@@ -198,6 +169,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     bool isConnected() const;
     bool isAuthenticated() const;
+
+    VirtualClock::time_point
+    getCreationTime() const
+    {
+        return mCreationTime;
+    }
+    std::chrono::seconds getLifeTime() const;
 
     PeerState
     getState() const
@@ -257,9 +235,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
-    virtual void drop(ErrorCode err, std::string const& msg, DropMode dropMode);
-
-    virtual void drop(DropMode dropMode) = 0;
+    virtual void drop(std::string const& reason, DropDirection dropDirection,
+                      DropMode dropMode) = 0;
     virtual ~Peer()
     {
     }

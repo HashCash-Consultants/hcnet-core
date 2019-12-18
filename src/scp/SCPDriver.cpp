@@ -24,6 +24,12 @@ SCPDriver::getValueString(Value const& v) const
 }
 
 std::string
+SCPDriver::toStrKey(PublicKey const& pk, bool fullKey) const
+{
+    return fullKey ? KeyUtils::toStrKey(pk) : toShortString(pk);
+}
+
+std::string
 SCPDriver::toShortString(PublicKey const& pk) const
 {
     return KeyUtils::toShortString(pk);

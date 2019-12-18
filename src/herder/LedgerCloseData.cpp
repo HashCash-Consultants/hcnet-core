@@ -13,8 +13,9 @@ using namespace std;
 namespace HcNet
 {
 
-LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq, TxSetFramePtr txSet,
-                                 HcNetValue const& v)
+LedgerCloseData::LedgerCloseData(
+    uint32_t ledgerSeq, std::shared_ptr<AbstractTxSetFrameForApply> txSet,
+    HcNetValue const& v)
     : mLedgerSeq(ledgerSeq), mTxSet(txSet), mValue(v)
 {
     Value x;
@@ -24,12 +25,16 @@ LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq, TxSetFramePtr txSet,
 }
 
 std::string
-HcNetValueToString(HcNetValue const& sv)
+HcNetValueToString(Config const& c, HcNetValue const& sv)
 {
     std::stringstream res;
 
-    res << "[ "
-        << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
+    res << "[";
+    if (sv.ext.v() == HcNet_VALUE_SIGNED)
+    {
+        res << " SIGNED@" << c.toShortString(sv.ext.lcValueSignature().nodeID);
+    }
+    res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
         << ", upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {
