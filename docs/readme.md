@@ -32,6 +32,12 @@ There are a few major components of the system. Each component has a dedicated
 source directory and its own dedicated `readme.md`.
 
 
+* **SCP** is our implementation of the HcNet Consensus Protocol (SCP). This
+  component is fully abstracted from the rest of the system. It receives
+  candidate black-box values and signals when these values have reached
+  consensus by the network (called _externalizing_ a value) (See
+  [`src/scp/readme.md`](/src/scp/readme.md)).
+
 * **Herder** is responsible for interfacing between SCP and the rest of
   `HcNet-core`. Herder provides SCP with concrete implementations of the
   methods SCP uses to communicate with peers, to compare values, to determine
@@ -63,7 +69,7 @@ source directory and its own dedicated `readme.md`.
 * **BucketList** stores ledger entries on disk arranged for hashing and
   block-catch-up. BucketList coordinates the hashing and deduplicating of
   buckets by multiple background threads
-  (See [`src/buckets/readme.md`](/src/buckets/readme.md)).
+  (See [`src/bucket/readme.md`](/src/bucket/readme.md)).
 
 * **Transactions** implements all the various transaction types (See
   [src/transactions/readme.md](/src/transactions/readme.md)).

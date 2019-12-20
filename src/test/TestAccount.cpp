@@ -213,8 +213,8 @@ TestAccount::bumpSequence(SequenceNumber to)
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
 }
 
-uint64_t
-TestAccount::manageOffer(uint64_t offerID, Asset const& selling,
+int64_t
+TestAccount::manageOffer(int64_t offerID, Asset const& selling,
                          Asset const& buying, Price const& price,
                          int64_t amount, ManageOfferEffect expectedEffect)
 {
@@ -223,7 +223,17 @@ TestAccount::manageOffer(uint64_t offerID, Asset const& selling,
                             expectedEffect);
 }
 
-uint64_t
+int64_t
+TestAccount::manageBuyOffer(int64_t offerID, Asset const& selling,
+                            Asset const& buying, Price const& price,
+                            int64_t amount, ManageOfferEffect expectedEffect)
+{
+    return applyManageBuyOffer(mApp, offerID, getSecretKey(), selling, buying,
+                               price, amount, nextSequenceNumber(),
+                               expectedEffect);
+}
+
+int64_t
 TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
                                 Price const& price, int64_t amount,
                                 ManageOfferEffect expectedEffect)
@@ -288,7 +298,7 @@ TestAccount::pay(PublicKey const& destination, Asset const& asset,
     applyTx(tx({payment(destination, asset, amount)}), mApp);
 }
 
-PathPaymentResult
+PathPaymentStrictReceiveResult
 TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
                  int64_t sendMax, Asset const& destCur, int64_t destAmount,
                  std::vector<Asset> const& path, Asset* noIssuer)
@@ -299,19 +309,49 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
     {
         applyTx(transaction, mApp);
     }
-    catch (ex_PATH_PAYMENT_NO_ISSUER&)
+    catch (ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER&)
     {
         REQUIRE(noIssuer);
         REQUIRE(*noIssuer == transaction->getResult()
                                  .result.results()[0]
                                  .tr()
-                                 .pathPaymentResult()
+                                 .pathPaymentStrictReceiveResult()
                                  .noIssuer());
         throw;
     }
 
     REQUIRE(!noIssuer);
 
-    return getFirstResult(*transaction).tr().pathPaymentResult();
+    return getFirstResult(*transaction).tr().pathPaymentStrictReceiveResult();
+}
+
+PathPaymentStrictSendResult
+TestAccount::pathPaymentStrictSend(PublicKey const& destination,
+                                   Asset const& sendCur, int64_t sendAmount,
+                                   Asset const& destCur, int64_t destMin,
+                                   std::vector<Asset> const& path,
+                                   Asset* noIssuer)
+{
+    auto transaction = tx({txtest::pathPaymentStrictSend(
+        destination, sendCur, sendAmount, destCur, destMin, path)});
+
+    try
+    {
+        applyTx(transaction, mApp);
+    }
+    catch (ex_PATH_PAYMENT_STRICT_SEND_NO_ISSUER&)
+    {
+        REQUIRE(noIssuer);
+        REQUIRE(*noIssuer == transaction->getResult()
+                                 .result.results()[0]
+                                 .tr()
+                                 .pathPaymentStrictSendResult()
+                                 .noIssuer());
+        throw;
+    }
+
+    REQUIRE(!noIssuer);
+
+    return getFirstResult(*transaction).tr().pathPaymentStrictSendResult();
 }
 };

@@ -36,4 +36,20 @@ syntax.  The full set of supported directives can be found in
 See `%prefix%/share/doc/*.cfg` for some example HcNet-core
 configuration files
 
+# FILES
 
+HcNet-core.cfg
+:   Configuration file (in current working directory by default)
+
+# SEE ALSO
+
+<https://www.HcNet.org/developers/HcNet-core/software/admin.html>
+:   HcNet-core administration guide
+
+<https://www.HcNet.org>
+:   Home page of HcNet development foundation
+
+# BUGS
+
+Please report bugs using the github issue tracker:\
+<https://github.com/HcNet/HcNet-core/issues>

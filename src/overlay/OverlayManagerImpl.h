@@ -13,9 +13,14 @@
 #include "overlay/Floodgate.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "overlay/HcNetXDR.h"
+#include "util/Logging.h"
 #include "util/Timer.h"
 
+#include "lib/util/lrucache.hpp"
+
+#include <future>
 #include <set>
 #include <vector>
 
@@ -41,8 +46,8 @@ class OverlayManagerImpl : public OverlayManager
     {
         explicit PeersList(OverlayManagerImpl& overlayManager,
                            medida::MetricsRegistry& metricsRegistry,
-                           std::string directionString,
-                           std::string cancelledName,
+                           std::string const& directionString,
+                           std::string const& cancelledName,
                            int maxAuthenticatedCount);
 
         medida::Meter& mConnectionsAttempted;
@@ -51,6 +56,7 @@ class OverlayManagerImpl : public OverlayManager
         medida::Meter& mConnectionsCancelled;
 
         OverlayManagerImpl& mOverlayManager;
+        std::string mDirectionString;
         int mMaxAuthenticatedCount;
 
         std::vector<Peer::pointer> mPending;
@@ -74,14 +80,16 @@ class OverlayManagerImpl : public OverlayManager
     LoadManager mLoad;
     bool mShuttingDown;
 
-    medida::Meter& mMessagesBroadcast;
-    medida::Counter& mPendingPeersSize;
-    medida::Counter& mAuthenticatedPeersSize;
+    OverlayMetrics mOverlayMetrics;
+
+    // NOTE: bool is used here as a placeholder, since no ValueType is needed.
+    cache::lru_cache<uint64_t, bool> mMessageCache;
+    uint32_t mCheckPerfLogLevelCounter;
+    el::Level mPerfLogLevel;
 
     void tick();
     VirtualTimer mTimer;
-
-    void storePeerList(std::vector<std::string> const& list, bool setPreferred);
+    VirtualTimer mPeerIPTimer;
 
     friend class OverlayManagerTests;
 
@@ -101,6 +109,7 @@ class OverlayManagerImpl : public OverlayManager
     bool addOutboundConnection(Peer::pointer peer) override;
     void removePeer(Peer* peer) override;
     void storeConfigPeers();
+    void purgeDeadPeers();
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) const override;
@@ -122,6 +131,7 @@ class OverlayManagerImpl : public OverlayManager
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
+    OverlayMetrics& getOverlayMetrics() override;
     PeerAuth& getPeerAuth() override;
 
     LoadManager& getLoadManager() override;
@@ -132,8 +142,24 @@ class OverlayManagerImpl : public OverlayManager
 
     bool isShuttingDown() const override;
 
+    void
+    recordDuplicateMessageMetric(HcNetMessage const& HcNetMsg) override;
+
   private:
+    struct ResolvedPeers
+    {
+        std::vector<PeerBareAddress> known;
+        std::vector<PeerBareAddress> preferred;
+    };
+
     std::map<PeerType, std::unique_ptr<RandomPeerSource>> mPeerSources;
+    std::future<ResolvedPeers> mResolvedPeers;
+
+    void triggerPeerResolution();
+    std::vector<PeerBareAddress>
+    resolvePeers(std::vector<std::string> const& peers);
+    void storePeerList(std::vector<PeerBareAddress> const& addresses,
+                       bool setPreferred, bool startup);
 
     virtual bool connectToImpl(PeerBareAddress const& address,
                                bool forceoutbound);

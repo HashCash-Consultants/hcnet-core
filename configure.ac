@@ -31,7 +31,7 @@ if test -z "${WFLAGS+set}"; then
    WFLAGS="$WFLAGS -Werror=unused-result"
 fi
 
-test "${CFLAGS+set}" || CFLAGS="-g -O2"
+test "${CFLAGS+set}" || CFLAGS="-g -O2 -fno-omit-frame-pointer"
 test "${CXXFLAGS+set}" || CXXFLAGS="$CFLAGS"
 
 AC_PROG_CC([clang gcc cc])
@@ -43,6 +43,8 @@ LT_INIT([disable-shared])
 AC_SUBST(LIBTOOL_DEPS)
 
 AC_LANG(C++)
+# if modifying the following macro for a future C++ version, please update CXX
+# for enable-afl in the fuzzer configuration block below
 AX_CXX_COMPILE_STDCXX_14(noext,mandatory)
 AX_FRESH_COMPILER
 # -pthread seems to be required by -std=c++14 on some hosts
@@ -191,11 +193,17 @@ AS_IF([test "x$enable_afl" = "xyes"], [
           [clang*], [AC_CHECK_PROGS([AFL_CLANG], [afl-clang-fast])
                      AC_CHECK_PROGS([AFL_CLANGPP], [afl-clang-fast++])
                      CC="afl-clang-fast"
-                     CXX="afl-clang-fast++"],
+                     # below we hard code -std=c++14 since updates to AX_CXX_COMPILE_STDCXX circa 2015 append it to
+                     # CXX, not to CXXFLAGS and thus when setting CXX we override this. For a more detailed explanation
+                     # see: https://github.com/HcNet/docker-HcNet-core/pull/66#issuecomment-521886881
+                     CXX="afl-clang-fast++ -std=c++14 -DAFL_LLVM_MODE=1"],
           [gcc*],   [AC_CHECK_PROGS([AFL_GCC], [afl-gcc])
                      AC_CHECK_PROGS([AFL_GPP], [afl-g++])
                      CC="afl-gcc"
-                     CXX="afl-g++"],
+                     # below we hard code -std=c++14 since updates to AX_CXX_COMPILE_STDCXX circa 2015 append it to
+                     # CXX, not to CXXFLAGS and thus when setting CXX we override this. For a more detailed explanation
+                     # see: https://github.com/HcNet/docker-HcNet-core/pull/66#issuecomment-521886881
+                     CXX="afl-g++ -std=c++14"],
           [AC_MSG_ERROR([Don't know how to instrument CC=$CC with AFL])])
 ])
 AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
@@ -258,7 +266,6 @@ AC_SUBST(libmedida_CFLAGS)
 AC_SUBST(libmedida_LIBS)
 
 soci_CFLAGS='-isystem $(top_srcdir)/lib/soci/src/core'
-soci_CFLAGS="$soci_CFLAGS "'-isystem $(top_srcdir)/lib/soci/src/backends/sqlite3'
 soci_LIBS='$(top_builddir)/lib/libsoci.a'
 AC_SUBST(soci_CFLAGS)
 AC_SUBST(soci_LIBS)
@@ -275,12 +282,13 @@ if test x"$enable_postgres" != xno; then
     if test -n "$enable_postgres" -a -z "$have_postgres"; then
        AC_MSG_ERROR([Cannot find postgres library])
     fi
-    if test -n "$have_postgres"; then
-       backend=
-       soci_CFLAGS="$soci_CFLAGS "'-isystem $(top_srcdir)/lib/soci/src/backends/postgresql'
-    fi
 fi
 AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
+
+AC_ARG_ENABLE(tests,
+    AS_HELP_STRING([--disable-tests],
+        [Disable building test suite]))
+AM_CONDITIONAL(BUILD_TESTS, [test x$enable_tests != xno])
 
 # Need this to pass through ccache for xdrpp, libsodium
 esc() {

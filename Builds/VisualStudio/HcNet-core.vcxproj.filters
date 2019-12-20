@@ -133,31 +133,28 @@
     <Filter Include="main\generated">
       <UniqueIdentifier>{4342892d-4e39-46b8-9f3c-ce4e4ef089ac}</UniqueIdentifier>
     </Filter>
+    <Filter Include="historyWork\tests">
+      <UniqueIdentifier>{3a882b5d-690b-4b62-b11a-61dc34ade4d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="util\tests">
+      <UniqueIdentifier>{856b0ad5-10a9-49a4-a36e-e98d7840bc83}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="github">
+      <UniqueIdentifier>{2f5780ba-6cc8-45ba-b70b-aa50af3af3ce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="herder\simulation">
+      <UniqueIdentifier>{d3bc5d86-b218-4775-a47d-8db1a1ec26a0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="catchup\simulation">
+      <UniqueIdentifier>{03aee051-1ba2-40f7-9551-8dbeaf8c4232}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="transactions\simulation">
+      <UniqueIdentifier>{b342c551-848c-427d-8d3b-df060afe49aa}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\Peer.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerDoor.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
       <Filter>lib\util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\LoopbackPeer.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
-      <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\http\connection.cpp">
       <Filter>lib\http</Filter>
@@ -222,47 +219,8 @@
     <ClCompile Include="..\..\lib\xdrpp\tests\srpc.cc">
       <Filter>lib\xdrpp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\MergeOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\PaymentOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\lib\util\format.cc">
       <Filter>lib\util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\OfferTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\PaymentTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\MergeTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\InflationTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp">
-      <Filter>transactions\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\asio.cpp">
       <Filter>lib</Filter>
@@ -270,53 +228,23 @@
     <ClCompile Include="..\..\lib\util\uint128_t.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\util\Uint128Tests.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp">
-      <Filter>ledger\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\TmpDir.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\TimerTests.cpp">
       <Filter>util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\simulation\Simulation.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketTests.cpp">
-      <Filter>bucket\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\simulation\CoreTests.cpp">
       <Filter>simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderTests.cpp">
-      <Filter>herder\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerManager.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\RandomPeerSource.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTests.cpp">
-      <Filter>ledger\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp">
       <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
-      <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\scp\SCP.cpp">
       <Filter>scp</Filter>
@@ -330,26 +258,8 @@
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\fuzz.cpp">
-      <Filter>main\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\HashOfHash.cpp">
       <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\PathPaymentOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp">
-      <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp">
       <Filter>simulation</Filter>
@@ -369,104 +279,32 @@
     <ClCompile Include="..\..\lib\util\crc16.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTestUtils.cpp">
-      <Filter>ledger\tests</Filter>
+    <ClCompile Include="..\..\src\work\BasicWork.cpp">
+      <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerAuth.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\scp\SCPTests.cpp">
-      <Filter>scp\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\LoadManager.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerManagerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\FloodTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp">
-      <Filter>transactions\tests</Filter>
+    <ClCompile Include="..\..\src\work\ConditionalWork.cpp">
+      <Filter>work</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\work\Work.cpp">
       <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\work\WorkManagerImpl.cpp">
+    <ClCompile Include="..\..\src\work\WorkScheduler.cpp">
       <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\work\WorkParent.cpp">
+    <ClCompile Include="..\..\src\work\WorkSequence.cpp">
       <Filter>work</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\BitsetEnumeratorTests.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp">
-      <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\StatusManager.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\util\StatusManagerTest.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\test\TestAccount.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\test\TxTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\scp\QuorumSetUtils.cpp">
       <Filter>scp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\scp\QuorumSetTests.cpp">
-      <Filter>scp\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\scp\SCPUnitTests.cpp">
-      <Filter>scp\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\Tracker.cpp">
-      <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\test.cpp">
       <Filter>test</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\TestUtils.cpp">
       <Filter>test</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\BalanceTests.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\BigDivideTests.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\FsTests.cpp">
-      <Filter>util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\SecretValue.cpp">
       <Filter>util</Filter>
@@ -480,68 +318,8 @@
     <ClCompile Include="..\..\lib\util\easylogging++.cc">
       <Filter>lib\util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\SyncingLedgerChainTests.cpp">
-      <Filter>ledger\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\AllowTrustTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ExchangeTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\PathPaymentTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TxResultsTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\test\TestMarket.cpp">
       <Filter>test</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\ConfigTests.cpp">
-      <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\ExternalQueueTests.cpp">
-      <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\catchup\CatchupWorkTests.cpp">
-      <Filter>catchup\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp">
-      <Filter>herder\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\UpgradesTests.cpp">
-      <Filter>herder\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
-      <Filter>crypto\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
-      <Filter>database\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\LruCacheTests.cpp">
-      <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TrackerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\process\ProcessTests.cpp">
-      <Filter>process\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\work\WorkTests.cpp">
-      <Filter>work\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp">
       <Filter>invariant</Filter>
@@ -552,76 +330,25 @@
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantTests.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantTestUtils.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValidTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabaseTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\ConservationOfLumensTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp">
-      <Filter>database\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\SerializeTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\HcNetCoreVersion.cpp">
       <Filter>main\generated</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\BumpSequenceTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerSharedKeyId.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\LoadManagerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffersTests.cpp">
-      <Filter>invariant\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LiabilitiesTests.cpp">
-      <Filter>ledger\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\numeric.cpp">
       <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerTxnTests.cpp">
-      <Filter>ledger\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
-      <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\catchup\ApplyLedgerChainWork.cpp">
+    <ClCompile Include="..\..\src\catchup\ApplyCheckpointWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp">
@@ -633,17 +360,17 @@
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\historywork\BatchWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp">
-      <Filter>historyWork</Filter>
+    <ClCompile Include="..\..\src\work\BatchWork.cpp">
+      <Filter>work</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp">
       <Filter>historyWork</Filter>
@@ -661,6 +388,9 @@
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\PutFilesWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp">
@@ -682,9 +412,6 @@
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\PutSnapshotFilesWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\RepairMissingBucketsWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\ResolveSnapshotWork.cpp">
@@ -783,6 +510,9 @@
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\TransactionQueue.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
       <Filter>herder</Filter>
     </ClCompile>
@@ -855,9 +585,6 @@
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\ApplicationTests.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\ApplicationUtils.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -868,9 +595,6 @@
       <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\Config.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp">
       <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\dumpxdr.cpp">
@@ -888,26 +612,389 @@
     <ClCompile Include="..\..\src\main\PersistentState.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp">
+      <Filter>catchup\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\test\CryptoTests.cpp">
+      <Filter>crypto\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\test\DatabaseConnectionStringTest.cpp">
+      <Filter>database\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\test\DatabaseTests.cpp">
+      <Filter>database\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\HerderTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\PendingEnvelopesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\TransactionQueueTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\UpgradesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\test\HistoryTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\test\HistoryTestsUtils.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\test\SerializeTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\AccountSubEntriesCountIsValidTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\BucketListIsConsistentWithDatabaseTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\ConservationOfLumensTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\InvariantTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\InvariantTestUtils.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\LiabilitiesMatchOffersTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\LedgerHeaderTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\LedgerManagerTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\LedgerTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\LedgerTestUtils.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\LedgerTxnTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\SyncingLedgerChainTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\test\ApplicationTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\test\ConfigTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\test\ExternalQueueTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\CacheTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\process\test\ProcessTests.cpp">
+      <Filter>process\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\test\QuorumSetTests.cpp">
+      <Filter>scp\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\test\SCPTests.cpp">
+      <Filter>scp\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\test\SCPUnitTests.cpp">
+      <Filter>scp\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\BalanceTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\BigDivideTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\DecoderTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\FsTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\StatusManagerTest.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\TimerTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\Uint128Tests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\XDRStreamTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\work\test\WorkTests.cpp">
+      <Filter>work\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\fuzz.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\TestAccount.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\TxTests.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\Thread.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\BumpSequenceTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ChangeTrustTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ExchangeTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\InflationTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ManageBuyOfferTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ManageDataTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\MergeTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\OfferTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\PathPaymentTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\PaymentTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\SetOptionsTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\SignatureUtilsTest.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\TxEnvelopeTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\TxResultsTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CreatePassiveSellOfferOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageBuyOfferOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageOfferOpFrameBase.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageSellOfferOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\MergeOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\OfferExchange.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PaymentOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\FloodTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\ItemFetcherTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\LoadManagerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\LoopbackPeer.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\OverlayManagerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\OverlayTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\PeerManagerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\TCPPeerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\TrackerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\LoadManager.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Peer.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerAuth.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerDoor.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerManager.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerSharedKeyId.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\RandomPeerSource.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Tracker.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\QuorumTrackerTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\QuorumTracker.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketListTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketManagerTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\BitSet.h">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\util\cbitset.c">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\BitSetTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketMergeMapTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketMergeMap.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\MergeKey.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\simulation\SimulationTxSetFrame.cpp">
+      <Filter>herder\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\simulation\ApplyTransactionsWork.cpp">
+      <Filter>catchup\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp">
+      <Filter>catchup\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\simulation\SimulationMergeOpFrame.cpp">
+      <Filter>transactions\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\simulation\SimulationTransactionFrame.cpp">
+      <Filter>transactions\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\FuzzerImpl.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\FileSystemException.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\PathPaymentStrictSendTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\overlay\Floodgate.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\OverlayManager.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\Peer.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerDoor.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
       <Filter>lib\util</Filter>
     </ClInclude>
@@ -916,12 +1003,6 @@
     </ClInclude>
     <ClInclude Include="..\..\lib\util\getopt.h">
       <Filter>lib\util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\LoopbackPeer.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\TCPPeer.h">
-      <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\lib\http\connection.hpp">
       <Filter>lib\http</Filter>
@@ -959,27 +1040,6 @@
     <ClInclude Include="..\..\src\util\types.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\InflationOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\MergeOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SetOptionsOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\util\format.h">
       <Filter>lib\util</Filter>
     </ClInclude>
@@ -1004,26 +1064,14 @@
     <ClInclude Include="..\..\src\simulation\Simulation.h">
       <Filter>simulation</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\OfferExchange.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\util\Math.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\asio.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerManager.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\RandomPeerSource.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\OperationFrame.h">
-      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\lib\json\json.h">
       <Filter>lib\json</Filter>
@@ -1052,32 +1100,17 @@
     <ClInclude Include="..\..\src\util\GlobalChecks.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\fuzz.h">
-      <Filter>main\tests</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\util\lrucache.hpp">
       <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\HashOfHash.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\PathPaymentOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\scp\BallotProtocol.h">
       <Filter>scp</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\scp\NominationProtocol.h">
       <Filter>scp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h">
-      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h">
       <Filter>simulation</Filter>
@@ -1115,71 +1148,32 @@
     <ClInclude Include="..\..\lib\catch.hpp">
       <Filter>lib</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h">
-      <Filter>ledger\tests</Filter>
+    <ClInclude Include="..\..\src\work\BasicWork.h">
+      <Filter>work</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerAuth.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\LoadManager.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\HcNetXDR.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h">
-      <Filter>transactions</Filter>
+    <ClInclude Include="..\..\src\work\ConditionalWork.h">
+      <Filter>work</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\work\Work.h">
       <Filter>work</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\work\WorkManager.h">
+    <ClInclude Include="..\..\src\work\WorkScheduler.h">
       <Filter>work</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\work\WorkManagerImpl.h">
+    <ClInclude Include="..\..\src\work\WorkSequence.h">
       <Filter>work</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\work\WorkParent.h">
-      <Filter>work</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\BitsetEnumerator.h">
-      <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\BanManager.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\BanManagerImpl.h">
-      <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\StatusManager.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\TestAccount.h">
-      <Filter>transactions\tests</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\test\TestExceptions.h">
-      <Filter>transactions\tests</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\test\TxTests.h">
-      <Filter>transactions\tests</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\scp\QuorumSetUtils.h">
       <Filter>scp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\Tracker.h">
-      <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\test.h">
       <Filter>test</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\TestUtils.h">
       <Filter>test</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SignatureChecker.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SignatureUtils.h">
-      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Algoritm.h">
       <Filter>util</Filter>
@@ -1195,9 +1189,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\TestMarket.h">
       <Filter>test</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\catchup\CatchupWorkTests.h">
-      <Filter>catchup\tests</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\SimpleTestReporter.h">
       <Filter>test</Filter>
@@ -1223,20 +1214,8 @@
     <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h">
       <Filter>invariant</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantTestUtils.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h">
       <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerBareAddress.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerSharedKeyId.h">
-      <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h">
       <Filter>invariant</Filter>
@@ -1247,13 +1226,13 @@
     <ClInclude Include="..\..\src\util\numeric.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
-      <Filter>transactions</Filter>
+    <ClInclude Include="..\..\src\util\RandomEvictionCache.h">
+      <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\catchup\ApplyLedgerChainWork.h">
+    <ClInclude Include="..\..\src\catchup\ApplyCheckpointWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h">
@@ -1268,17 +1247,17 @@
     <ClInclude Include="..\..\src\catchup\CatchupWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\historywork\BatchWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h">
-      <Filter>historyWork</Filter>
+    <ClInclude Include="..\..\src\work\BatchWork.h">
+      <Filter>work</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h">
       <Filter>historyWork</Filter>
@@ -1301,6 +1280,9 @@
     <ClInclude Include="..\..\src\historywork\GzipFileWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\historywork\PutFilesWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
@@ -1317,9 +1299,6 @@
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\PutSnapshotFilesWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\RepairMissingBucketsWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\ResolveSnapshotWork.h">
@@ -1430,6 +1409,9 @@
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h">
       <Filter>herder</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\herder\TransactionQueue.h">
+      <Filter>herder</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetFrame.h">
       <Filter>herder</Filter>
     </ClInclude>
@@ -1520,10 +1502,10 @@
     <ClInclude Include="..\..\src\main\Config.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h">
+    <ClInclude Include="..\..\src\main\dumpxdr.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\dumpxdr.h">
+    <ClInclude Include="..\..\src\main\ErrorMessages.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ExternalQueue.h">
@@ -1534,6 +1516,204 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\PersistentState.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\database\DatabaseTypeSpecificOperation.h">
+      <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h">
+      <Filter>catchup\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\test\HistoryTestsUtils.h">
+      <Filter>history\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\test\InvariantTestUtils.h">
+      <Filter>invariant\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h">
+      <Filter>ledger\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\fuzz.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TestAccount.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TestExceptions.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TxTests.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Thread.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\FileSystemException.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CreatePassiveSellOfferOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\InflationOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ManageBuyOfferOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ManageOfferOpFrameBase.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ManageSellOfferOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\MergeOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\OfferExchange.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\OperationFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SetOptionsOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SignatureChecker.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SignatureUtils.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\test\LoopbackPeer.h">
+      <Filter>overlay\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\BanManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\BanManagerImpl.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Floodgate.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\LoadManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\OverlayManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\OverlayMetrics.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Peer.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerAuth.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerBareAddress.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerDoor.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerSharedKeyId.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\RandomPeerSource.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\HcNetXDR.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\TCPPeer.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Tracker.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\QuorumTracker.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\cbitset.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\cbitset_portability.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketMergeMap.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketTests.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\MergeKey.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\simulation\SimulationTxSetFrame.h">
+      <Filter>herder\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\simulation\ApplyTransactionsWork.h">
+      <Filter>catchup\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h">
+      <Filter>catchup\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\simulation\SimulationMergeOpFrame.h">
+      <Filter>transactions\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\simulation\SimulationTransactionFrame.h">
+      <Filter>transactions\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\FuzzerImpl.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1548,12 +1728,6 @@
     <None Include="..\..\README.md" />
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\Makefile.am" />
-    <None Include="..\..\src\transactions\readme.md">
-      <Filter>transactions</Filter>
-    </None>
-    <None Include="..\..\src\overlay\readme.md">
-      <Filter>overlay</Filter>
-    </None>
     <None Include="..\..\src\scp\readme.md">
       <Filter>scp</Filter>
     </None>
@@ -1612,8 +1786,6 @@
     <None Include="..\..\CONTRIBUTING.md" />
     <None Include="..\..\README" />
     <None Include="..\..\travis-build.sh" />
-    <None Include="..\..\.github\ISSUE_TEMPLATE.md" />
-    <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md" />
     <None Include="..\..\src\history\serialize-tests\HcNet-history.livenet.15686975.json">
       <Filter>history\tests\serialize-tests</Filter>
     </None>
@@ -1638,6 +1810,39 @@
     </None>
     <None Include="..\..\src\ledger\readme.md">
       <Filter>ledger</Filter>
+    </None>
+    <None Include="..\..\src\transactions\readme.md">
+      <Filter>transactions</Filter>
+    </None>
+    <None Include="..\..\src\overlay\readme.md">
+      <Filter>overlay</Filter>
+    </None>
+    <None Include="..\..\docs\software\performance.md">
+      <Filter>docs\software</Filter>
+    </None>
+    <None Include="..\..\docs\software\security-protocol-release-notes.md">
+      <Filter>docs\software</Filter>
+    </None>
+    <None Include="..\..\docs\HcNet-core.1.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\HcNet-core_testnet_legacy.cfg">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\HcNet-core_example_validators.cfg">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\.github\ISSUE_TEMPLATE\bug-report.md">
+      <Filter>github</Filter>
+    </None>
+    <None Include="..\..\.github\ISSUE_TEMPLATE\documentation.md">
+      <Filter>github</Filter>
+    </None>
+    <None Include="..\..\.github\ISSUE_TEMPLATE\feature-request.md">
+      <Filter>github</Filter>
+    </None>
+    <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md">
+      <Filter>github</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

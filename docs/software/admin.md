@@ -2,45 +2,39 @@
 title: Administration
 ---
 
-## Purpose of this document
-
-This document describes various aspects of running `HcNet-core` for **system administrators** (but may be useful to a broader audience).
-
 ## Introduction
 
-HcNet Core is responsible for communicating directly with and maintaining the HcNet peer-to-peer network. For a high-level introduction to HcNet Core, [watch this talk](https://www.youtube.com/watch?v=pt_mm8S9_WU) on the architecture and ledger basics:
+HcNet Core is the program nodes use to communicate with other nodes to create and maintain the HcNet peer-to-peer network.  It's an implementation of the HcNet Consensus Protocol configured to construct a chain of ledgers guaranteed to be in agreement across all participating nodes at all times.
 
-[![Introduction to HcNet Core](https://i.ytimg.com/vi/pt_mm8S9_WU/hqdefault.jpg "Introduction to HcNet Core")](https://www.youtube.com/watch?v=pt_mm8S9_WU)
+This document describes various aspects of installing, configuring, and maintaining a `HcNet-core` node.  It will explain:
 
-It will also be useful to understand how [data flows](https://www.HcNet.org/developers/HcNet-core/software/core-data-flow.pdf) and is stored in the system.
 
-## Zero to completed: node checklist
- - [ ] [deciding to run a node](#why-run-a-node)
- - [ ] [setting up an instance to run core](#instance-setup)
- - [ ] [install HcNet-core](#installing)
- - [ ] [craft a configuration](#configuring)
- - [ ] [crafting  a quorum set](#crafting-a-quorum-set)
- - [ ] [preparing the environment before the first run](#environment-preparation)
- - [ ] [joining the network](#joining-the-network)
- - [ ] [logging](#logging)
- - [ ] [monitoring and diagnostics](#monitoring-and-diagnostics)
- - [ ] [performing validator maintenance](#validator-maintenance)
- - [ ] [performing network wide updates](#network-configuration)
- - [ ] [advanced topics and internals](#advanced-topics-and-internals)
+  - [ ] [why you should run a node](#why-run-a-node)
+  - [ ] [what you need to set up](#instance-setup)
+  - [ ] [how to install HcNet core](#installing)
+  - [ ] [how to configure your node](#configuring)
+  - [ ] [how quorum sets work](#choosing-your-quorum-set)
+  - [ ] [how to prepare your environment before the first run](#environment-preparation)
+  - [ ] [how to join the network](#joining-the-network)
+  - [ ] [how logging works](#logging)
+  - [ ] [node monitoring and diagnostics](#monitoring-and-diagnostics)
+  - [ ] [how to perform validator maintenance](#validator-maintenance)
+  - [ ] [how to perform network wide updates](#network-configuration)
 
 ## Why run a node?
 
 ### Benefits of running a node
 
-You get to run your own Aurora instance:
-* Allows for customizations (triggers, etc) of the business logic or APIs
-* Full control of which data to retain (historical or online)
-* A trusted entry point to the network
-  * Trusted end to end (can implement additional counter measures to secure services)
-  * Open Aurora increases customer trust by allowing to query at the source (ie: larger token issuers have an official endpoint that can be queried)
-* Control of SLA
+You get to run your own Horizon instance:
 
-note: in this document we use "Aurora" as the example implementation of a first tier service built on top of HcNet-core, but any other system would get the same benefits.
+  * Allows for customizations (triggers, etc) of the business logic or APIs
+  * Full control of which data to retain (historical or online)
+  * A trusted entry point to the network
+    * Trusted end to end (can implement additional counter measures to secure services)
+    * Open Horizon increases customer trust by allowing to query at the source (ie: larger token issuers have an official endpoint that can be queried)
+  * Control of SLA
+
+note: in this document we use "Horizon" as the example implementation of a first tier service built on top of HcNet-core, but any other system would get the same benefits.
 
 ### Level of participation to the network
 
@@ -50,7 +44,7 @@ As a node operator you can participate to the network in multiple ways.
 | -------------------------------------------------- | ------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | description                                        | non-validator | all of watcher + publish to archive | all of watcher + active participation in consensus (submit proposals for the transaction set to include in the next ledger) | basic validator + publish to archive |
 | submits transactions                               | yes           | yes                                 | yes                                                                                                                         | yes                                  |
-| supports Aurora                                   | yes           | yes                                 | yes                                                                                                                         | yes                                  |
+| supports horizon                                   | yes           | yes                                 | yes                                                                                                                         | yes                                  |
 | participates in consensus                          | no            | no                                  | yes                                                                                                                         | yes                                  |
 | helps other nodes to catch up and join the network | no            | yes                                 | no                                                                                                                          | yes                                  |
 | Increase the resiliency of the network             | No            | Medium                              | Low                                                                                                                         | High                                 |
@@ -65,13 +59,15 @@ From an operational point of view "watchers" and "basic validators" are about th
 Watcher nodes are configured to watch the activity from the network
 
 Use cases:
-* Ephemeral instances, where having other nodes depend on those nodes is not desired
-* Potentially reduced administration cost (no or reduced SLA)
-* Real time network monitoring (which validators are present, etc)
-* Generate network meta-data for other systems (Aurora) 
+
+  * Ephemeral instances, where having other nodes depend on those nodes is not desired
+  * Potentially reduced administration cost (no or reduced SLA)
+  * Real time network monitoring (which validators are present, etc)
+  * Generate network meta-data for other systems (Horizon)
 
 **Operational requirements**:
-* a [database](#database)
+
+  * a [database](#database)
 
 #### Archiver nodes
 
@@ -80,30 +76,34 @@ The purpose of Archiver nodes is to record the activity of the network in long t
 [History Archives](#history-archives) contain snapshots of the ledger, all transactions and their results.
 
 Use cases:
-* Everything that a watcher node can do
-* Need for a low cost compliance story
-* Participate to the network’s resiliency
-* Analysis of historical data
+
+  * Everything that a watcher node can do
+  * Need for a low cost compliance story
+  * Participate to the network’s resiliency
+  * Analysis of historical data
 
 **Operational requirements**:
-* requires an additional internet facing blob store
-* a [database](#database)
+
+  * requires an additional internet facing blob store
+  * a [database](#database)
 
 #### Basic validators
 Nodes configured to actively vote on the network.
 
 Use cases:
-* Everything that a watcher node can do
-* Increase the network reliability
-* Enables deeper integrations by clients and business partners
-* Official endorsement of specific ledgers in real time (via signatures)
-* Quorum Set aligned with business priorities
-* Additional checks/invariants enabled
-  * Validator can halt and/or signal that for example (in the case of an issuer) that it does not agree to something.
+
+  * Everything that a watcher node can do
+  * Increase the network reliability
+  * Enables deeper integrations by clients and business partners
+  * Official endorsement of specific ledgers in real time (via signatures)
+  * Quorum Set aligned with business priorities
+  * Additional checks/invariants enabled
+    * Validator can halt and/or signal that for example (in the case of an issuer) that it does not agree to something.
 
 **Operational requirements**: 
-* secret key management (used for signing messages on the network)
-* a [database](#database)
+
+  * secret key management (used for signing messages on the network)
+  * a [database](#database)
 
 #### Full validators
 
@@ -112,15 +112,17 @@ Nodes fully participating in the network.
 Full validators are the true measure of how decentralized and redundant the network is as they are the only type of validators that perform all functions on the network.
 
 Use cases:
-* All other use cases
-* Some full validators required to be v-blocking (~ N full validators, M other validators on the network -> require at least M+1 threshold)
-* Branding - strongest association with the network
-* Mutually beneficial - best way to support the network’s health and resilience
+
+  * All other use cases
+  * Some full validators required to be v-blocking (~ N full validators, M other validators on the network -> require at least M+1 threshold)
+  * Branding - strongest association with the network
+  * Mutually beneficial - best way to support the network’s health and resilience
 
 **Operational requirements**:
-* requires an additional internet facing blob store 
-* secret key management (used for signing messages on the network)
-* a [database](#database)
+
+  * requires an additional internet facing blob store
+  * secret key management (used for signing messages on the network)
+  * a [database](#database)
 
 ## Instance setup
 Regardless of how you install HcNet-core (apt, source, docker, etc), you will need to configure the instance hosting it roughly the same way.
@@ -135,18 +137,19 @@ Storage wise, 20 GB seems to be an excellent working set as it leaves plenty of 
 ### Network access
 
 #### Interaction with the peer to peer network
-* **inbound**: HcNet-core needs to allow all ips to connect to its `PEER_PORT` (default 11625) over TCP.
-* **outbound**: HcNet-core needs access to connect to other peers on the internet on `PEER_PORT` (most use the default as well) over TCP.
+
+  * **inbound**: HcNet-core needs to allow all ips to connect to its `PEER_PORT` (default 11625) over TCP.
+  * **outbound**: HcNet-core needs access to connect to other peers on the internet on `PEER_PORT` (most use the default as well) over TCP.
 
 #### Interaction with other internal systems
 
-* **outbound**:
-  * HcNet-core needs access to a database (postgresql for example), which may reside on a different machine on the network
-  * other connections can safely be blocked
-* **inbound**: HcNet-core exposes an *unauthenticated* HTTP endpoint on port `HTTP_PORT` (default 11626)
-  * it is used by other systems (such as Aurora) to submit transactions (so may have to be exposed to the rest of your internal ips)
-  *  query information (info, metrics, ...) for humans and automation
-  *  perform administrative commands (schedule upgrades, change log levels, ...)
+  * **outbound**:
+    * HcNet-core needs access to a database (postgresql for example), which may reside on a different machine on the network
+    * other connections can safely be blocked
+  * **inbound**: HcNet-core exposes an *unauthenticated* HTTP endpoint on port `HTTP_PORT` (default 11626)
+    * it is used by other systems (such as Horizon) to submit transactions (so may have to be exposed to the rest of your internal ips)
+    *  query information (info, metrics, ...) for humans and automation
+    *  perform administrative commands (schedule upgrades, change log levels, ...)
 
 Note on exposing the HTTP endpoint:
 if you need to expose this endpoint to other hosts in your local network, it is recommended to use an intermediate reverse proxy server to implement authentication. Don't expose the HTTP endpoint to the raw and cruel open internet.
@@ -155,25 +158,27 @@ if you need to expose this endpoint to other hosts in your local network, it is 
 
 ### Release version
 
-In general you should aim to run the latest [release](https://github.com/HcNet/HcNet-core/releases) as builds are backward compatible and are cummulative.
+In general you should aim to run the latest [release](https://github.com/HcNet/HcNet-core/releases) as builds are backward compatible and are cumulative.
 
 The version number scheme that we follow is `protocol_version.release_number.patch_number`, where
-* `protocol_version` is the maximum protocol version supported by that release (all versions are 100% backward compatible),
-* `release_number` is bumped when a set of new features or bug fixes not impacting the protocol are included in the release,
-* `patch_number` is used when a critical fix has to be deployed 
+
+  * `protocol_version` is the maximum protocol version supported by that release (all versions are 100% backward compatible),
+  * `release_number` is bumped when a set of new features or bug fixes not impacting the protocol are included in the release,
+  * `patch_number` is used when a critical fix has to be deployed
 
 ### Installing from source
 See the [INSTALL](https://github.com/HcNet/HcNet-core/blob/master/INSTALL.md) for build instructions.
 
 ### Package based Installation
-If you are using Ubuntu 16.04 LTS we provide the latest stable releases of [HcNet-core](https://github.com/HcNet/HcNet-core) and [HcNet-Aurora](https://github.com/HcNet/go/tree/master/services/Aurora) in Debian binary package format.
+If you are using Ubuntu 16.04 LTS we provide the latest stable releases of [HcNet-core](https://github.com/HcNet/HcNet-core) and [HcNet-horizon](https://github.com/HcNet/go/tree/master/services/horizon) in Debian binary package format.
 
 See [detailed installation instructions](https://github.com/HcNet/packages#sdf---packages)
 
 ### Container based installation
 Docker images are maintained in a few places, good starting points are:
- * the [quickstart image](https://github.com/HcNet/docker-HcNet-core-Aurora)
- * the [standalone image](https://github.com/HcNet/docker-HcNet-core). **Warning**: this only tracks the latest master, so you have to find the image based on the [release](https://github.com/HcNet/HcNet-core/releases) that you want to use.
+
+   * the [quickstart image](https://github.com/HcNet/docker-HcNet-core-horizon)
+   * the [standalone image](https://github.com/HcNet/docker-HcNet-core). **Warning**: this only tracks the latest master, so you have to find the image based on the [release](https://github.com/HcNet/HcNet-core/releases) that you want to use.
 
 ## Configuring
 
@@ -187,7 +192,7 @@ HcNet-core loads `./HcNet-core.cfg`, but you can specify a different file to loa
 
 The [example config](https://github.com/HcNet/HcNet-core/blob/master/docs/HcNet-core_example.cfg) is not a real configuration, but documents all possible configuration elements as well as their default values.
 
-Here is an [example test network config](https://github.com/HcNet/docker-HcNet-core-Aurora/blob/master/testnet/core/etc/HcNet-core.cfg) for connecting to the test network.
+Here is an [example test network config](https://github.com/HcNet/docker-HcNet-core-horizon/blob/master/testnet/core/etc/HcNet-core.cfg) for connecting to the test network.
 
 Here is an [example public network config](https://github.com/HcNet/docs/blob/master/other/HcNet-core-validator-example.cfg) for connecting to the public network.
 
@@ -195,9 +200,7 @@ The examples in this file don't specify `--conf betterfile.cfg` for brevity.
 
 ### Validating node
 Nodes are considered **validating** if they take part in SCP and sign messages 
-pledging that the network agreed to a particular transaction set. It isn't 
-necessary to be a validator. Only set your node to validate if other nodes 
-care about your validation.
+pledging that the network agreed to a particular transaction set.
 
 If you want to validate, you must generate a public/private key for your node.
  Nodes shouldn't share keys. You should carefully *secure your private key*. 
@@ -221,100 +224,129 @@ and set the following value in your config:
 
 `NODE_IS_VALIDATOR=true`
 
-Tell other people your public key (GDMTUTQ... ) so people can add it to their `QUORUM_SET` in their config.
 If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=true`, you will still
 watch SCP and see all the data in the network but will not send validation messages.
 
-### Crafting a quorum set
+NB: if you run more than one node, set the `HOME_DOMAIN` common to those nodes using the `NODE_HOME_DOMAIN` property.
+Doing so will allow your nodes to be grouped correctly during [quorum set generation](#home-domains-array).
 
-This section describes how to configure the quorum set for a validator and assumes basic understanding of the [HcNet Consensus Protocol](https://www.HcNet.org/developers/guides/concepts/scp.html).
+If you want other validators to add your node to their quorum sets, you should also share your public key (GDMTUTQ... ) by publishing a HcNet.toml file on your homedomain following specs laid out in [SEP-20](https://github.com/HcNet/HcNet-protocol/blob/master/ecosystem/sep-0020.md). 
 
-#### Validator list
+### Choosing your quorum set
+A good quorum set:
+* aligns with your organization’s priorities 
+* has enough redundancy to handle arbitrary node failures
+* maintains good quorum intersection 
 
-You will find lists of validators in a few places:
-* [list of validators](https://github.com/HcNet/docs/blob/master/validators.md)
-* the [HcNet Dashboard](https://dashboard.HcNet.org/)
+Since crafting a good quorum set is a difficult thing to do, HcNet core *automatically* generates a quorum set for you based on structured information you provide in your config file.  You choose the validators you want to trust; HcNet core configures them into an optimal quorum set.
 
-#### Understanding requirements for a good quorum
+To generate a quorum set, HcNet core:
+* Groups validators run by the same organization into a subquorum
+* Sets the threshold for each of those subquorums
+* Gives weights to those subquorums based on quality
 
-The way quorum sets are configured is explained in detail in the [example config](https://github.com/HcNet/HcNet-core/blob/master/docs/HcNet-core_example.cfg).
+While this does not absolve you of all responsibility — you still need to pick trustworthy validators and keep an eye on them to ensure that they’re consistent and reliable — it does make your life easier, and reduces the chances for human error.
 
-As an administrator what you need to do is ensure that your quorum configuration:
-* is aligned with how you want to trust other nodes on the network
-* gives good guarantees on the quorum intersection property of the network
-* provides the right properties in the event of arbitrary node failures
+#### Validator discovery
+When you add a validating node to your quorum set, it’s generally because you trust the *organization* running the node: you trust SDF, not some anonymous HcNet public key. 
 
-If you are running multiple validators, the availability model of your organization as a "group of validators" (the way people are likely to refer to your validators) is not like traditional web services:
-* traditional web services stay available down to the last node
-* in the consensus world, for your group to be available, 67% of your nodes have to agree to each other
+In order to create a self-verified link between a node and the organization that runs it, a validator declares a home domain on-chain using a `set_options` operation, and publishes organizational information in a HcNet.toml file hosted on that domain.  To find out how that works, take a look at [SEP-20](https://github.com/HcNet/HcNet-protocol/blob/master/ecosystem/sep-0020.md).  
 
-#### Recommended pattern for building a quorum set
+As a result of that link, you can look up a node by its HcNet public key and check the HcNet.toml to find out who runs it.  It’s possible to do that manually, but you can also just consult the list of nodes on [HcNetbeat.io](https://HcNetbeat.io/nodes).  If you decide to trust an organization, you can use that list to collect the information necessary to add their nodes to your configuration.  
 
-Divide the validators into two categories:
-* [full validators](#full-validators)
-* [basic validators](#basic-validators) 
+When you look at that list, you will discover that the most reliable organizations actually run more than one validator, and adding all of an organization’s nodes to your quorum set creates the redundancy necessary to sustain arbitrary node failure.  When an organization with a trio of nodes takes one down for maintenance, for instance, the remaining two vote on the organization’s behalf, and the organization’s network presence persists.
 
-One of the goals is to ensure that there will always be some full validators in any given quorum (from your node's point of view).
+One important thing to note: you need to either depend on exactly one entity OR have **at least 4 entities** for automatic quorum set configuration to work properly.  At least 4 is the better option.
 
-As the way quorum sets are specified using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
+#### Home domains array
+To create your quorum set, HcNet cores relies on two arrays of tables: `[[HOME_DOMAINS]]` and `[[VALIDATORS]]`.  Check out the [example config](https://github.com/HcNet/HcNet-core/blob/master/docs/HcNet-core_example.cfg#L372) to see those arrays in action.
 
-```toml
-[QUORUM_SET]
-THRESHOLD_PERCENT= ?
-VALIDATORS= [ ... ]
+`[[HOME_DOMAINS]]` defines a superset of validators: when you add nodes hosted by the same organization to your configuration, they share a home domain, and the information in the `[[HOME_DOMAINS]]` table, specifically the quality rating, will automatically apply to every one of those validators. 
 
-# optional, other full validators grouped by entity
-[QUORUM_SET.FULLSDF]
-THRESHOLD_PERCENT= 66
-VALIDATORS = [ ... ]
+For each organization you want to add, create a separate `[[HOME_DOMAINS]]` table, and complete the following required fields:
 
-# other basic validators
-[QUORUM_SET.BASIC]
-THRESHOLD_PERCENT= ?
-VALIDATORS= [ ... ]
+Field | Requirements | Description
+------|--------------|------------
+HOME_DOMAIN | string | URL of home domain linked to a group of validators
+QUALITY | string | Rating for organization's nodes: `HIGH`, `MEDIUM`, or `LOW`
 
-# optional, more basic validators from entity XYZ
-[QUORUM_SET.BASIC.XYZ]
-THRESHOLD_PERCENT= 66
-VALIDATORS= [ ... ]
+Here’s an example:
+```
+[[HOME_DOMAINS]]
+HOME_DOMAIN="testnet.HcNet.org"
+QUALITY="HIGH"
+
+ [[HOME_DOMAINS]]
+ HOME_DOMAIN="some-other-domain"
+ QUALITY="LOW"
 ```
 
-A simple configuration with those properties could look like this:
-```toml
-[QUORUM_SET]
-# this setup puts all basic entities into one top level one
-# this makes the minimum number of entities at the top level to be 2
-# with 3 validators, we then end up with a minimum of 50%
-# more would be better at the expense of liveness in this example
-THRESHOLD_PERCENT= 67
-VALIDATORS= [ "$sdf1", "$sdf2", "$sdf3" ]
+#### Validators array
+For each node you would like to add to your quorum set, complete a `[[VALIDATORS]]` table with the following fields:  
 
-[QUORUM_SET.BASIC]
-THRESHOLD_PERCENT= 67
-VALIDATORS= [ ... ]
+Field | Requirements | Description
+------|--------------|------------
+NAME | string | A unique alias for the node
+QUALITY | string | Rating for node (required unless specified in `[[HOME_DOMAINS]]`): `HIGH`, `MEDIUM`, or `LOW`.
+HOME_DOMAIN | string | URL of home domain linked to validator
+PUBLIC_KEY | string | HcNet public key associated with validator
+ADDRESS | string | Peer:port associated with validator (optional)
+HISTORY | string | archive GET command associated with validator (optional)
 
-[QUORUM_SET.BASIC.XYZ]
-THRESHOLD_PERCENT= 67
-VALIDATORS= [ ... ]
+If the node's `HOME_DOMAIN` aligns with an organization defined in the `[[HOME_DOMAINS]]` array, the quality rating specified there will apply to the node.  If you’re adding an individual node that is *not* covered in that array, you’ll need to specify the `QUALITY` here.
+
+Here’s an example:
+```
+[[VALIDATORS]]
+NAME="sdftest1"
+HOME_DOMAIN="testnet.HcNet.org"
+PUBLIC_KEY="GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y"
+ADDRESS="core-testnet1.HcNet.org"
+HISTORY="curl -sf http://history.HcNet.org/prd/core-testnet/core_testnet_001/{0} -o {1}"
+
+[[VALIDATORS]]
+NAME="sdftest2"
+HOME_DOMAIN="testnet.HcNet.org"
+PUBLIC_KEY="GCUCJTIYXSOXKBSNFGNFWW5MUQ54HKRPGJUTQFJ5RQXZXNOLNXYDHRAP"
+ADDRESS="core-testnet2.HcNet.org"
+HISTORY="curl -sf http://history.HcNet.org/prd/core-testnet/core_testnet_002/{0} -o {1}"
+
+[[VALIDATORS]]
+NAME="rando-node"
+QUALITY="LOW"
+HOME_DOMAIN="rando.com"
+PUBLIC_KEY="GC2V2EFSXN6SQTWVYA5EPJPBWWIMSD2XQNKUOHGEKB535AQE2I6IXV2Z"
+ADDRESS="core.rando.com"
 ```
 
-#### Picking thresholds
+#### Validator quality
+`QUALITY` is a required field for each node you add to your quorum set.  Whether you specify it for a suite of nodes in `[[HOME_DOMAINS]]` or for a single node in `[[VALIDATORS]]`, it means the same thing, and you have the same three rating options: HIGH, MEDIUM, or LOW.
 
-Thresholds and groupings go hand in hand, and balance:
- * liveness - network doesn't halt when some nodes are missing (during maintenance for example)
- * safety - resistance to bad votes, some nodes being more important (full validators) for the normal operation of the network
+**HIGH** quality validators are given the most weight in automatic quorum set configuration.  Before assigning a high quality rating to a node, make sure it has low latency and good uptime, and that the organization running the node is reliable and trustworthy.  
 
-Liveness pushes thresholds lower and safety pushes thresholds higher.
+A high quality a validator:
+* publishes an archive
+* belongs to a suite of nodes that provide redundancy 
 
-On the safety front, ideally any group (regardless of its composition), can suffer a 33% byzantine failure, but in some cases this is not practical and a different configuration needs to be picked.
+Choosing redundant nodes is good practice.  The archive requirement is programmatically enforced.
 
-You may have to change the grouping in order to achieve the expected properties:
-* merging groups typically makes the group more resilient, compare:
-  * [51%, [51%, A, B, C, D], [51%, E, F, G, H]] # group of 4 has a threshold of 3 nodes -> 2 nodes missing enough to halt
-  * [51%, A, B, C, D, E, F, G, H] # 8 nodes -> 5 nodes threshold -> 4 nodes missing to halt 
-* splitting groups can also be useful to make certain entities optional, compare:
-  * [100%, [51%, A, B, C], [50%, D, E]] # requires D or E to agree
-  * [ 67%, A, B, C, [50%, D, E]] # D or E only required if one of A,B,C doesn't agree (the [D,E] group acts as a tie breaker)
+**MEDIUM** quality validators are nested below high quality validators, and their combined weight is equivalent to a *single high quality entity*.  If a node doesn't publish an archive, but you deem it reliable, or have an organizational interest in including in your quorum set, give it a medium quality rating.  
+
+**LOW** quality validators are nested below medium quality validators, and their combined weight is equivalent to a *single medium quality entity*.    Should they prove reliable over time, you can upgrade their rating to medium to give them a bigger role in your quorum set configuration. 
+ 
+#### Automatic quorum set generation
+Once you add validators to your configuration, HcNet core automatically generates a quorum set using the following rules:
+* Validators with the same home domain are automatically grouped together and given a threshold requiring a simple majority (2f+1)
+* Heterogeneous groups of validators are given a threshold assuming byzantine failure (3f+1)
+* Entities are grouped by QUALITY and nested from HIGH to LOW 
+* HIGH quality entities are at the top, and are given decision-making priority 
+* The combined weight of MEDIUM quality entities equals a single HIGH quality entity  
+* The combined weight of LOW quality entities equals a single MEDIUM quality entity
+
+Here's a diagram depicting the nested quality levels and how they interact:
+
+![Diagram Automatic Quorum Set Generation](https://raw.githubusercontent.com/HcNet/docs/master/guides/walkthroughs/assets/validator_complete.png)
+
 
 #### Quorum and overlay network
 
@@ -327,12 +359,14 @@ Without those settings, your validator depends on other nodes on the network to 
 #### Special considerations during quorum set updates
 
 Sometimes an organization needs to make changes that impact other's quorum sets:
-* taking a validator down for long period of time
-* adding new validators to their pool
+
+  * taking a validator down for long period of time
+  * adding new validators to their pool
 
 In both cases, it's crucial to stage the changes to preserve quorum intersection and general good health of the network:
-* removing too many nodes from your quorum set *before* the nodes are taken down : if different people remove different sets the remaining sets may not overlap between nodes and may cause network splits 
-* adding too many nodes in your quorum set at the same time : if not done carefully can cause those nodes to overpower your configuration
+
+  * removing too many nodes from your quorum set *before* the nodes are taken down : if different people remove different sets the remaining sets may not overlap between nodes and may cause network splits
+  * adding too many nodes in your quorum set at the same time : if not done carefully can cause those nodes to overpower your configuration
 
 Recommended steps are for the entity that adds/removes nodes to do so first between their own nodes, and then have people reflect those changes gradually (over several rounds) in their quorum configuration.
 
@@ -340,13 +374,13 @@ Recommended steps are for the entity that adds/removes nodes to do so first betw
 
 ### HcNet-core configuration
 Cross reference your validator settings, in particular:
-* environment specific settings
-  * network passphrase
-  * known peers
-* quorum set
-  * public keys of the validators that you manage grouped properly
-* seed defined if validating
-* [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when HcNet-core is used in conjunction with a downstream system like Aurora.
+
+  * environment specific settings
+    * network passphrase
+    * known peers
+  * home domains and validators arrays
+  * seed defined if validating
+  * [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when HcNet-core is used in conjunction with a downstream system like Horizon.
 
 ### Database and local state
 
@@ -363,22 +397,33 @@ HcNet-core stores the state of the ledger in a SQL database.
 
 This DB should either be a SQLite database or, for larger production instances, a separate PostgreSQL server.
 
-*Note: Aurora currently depends on using PostgreSQL.*
+*Note: Horizon currently depends on using PostgreSQL.*
 
 For how to specify the database, 
 see the [example config](https://github.com/HcNet/HcNet-core/blob/master/docs/HcNet-core_example.cfg).
 
 ##### Cursors and automatic maintenance
 
-Some tables in the database act as a publishing queue for external systems such as Aurora and generate **meta data** for changes happening to the distributed ledger.
+Some tables in the database act as a publishing queue for external systems such as Horizon and generate **meta data** for changes happening to the distributed ledger.
 
 If not managed properly those tables will grow without bounds. To avoid this, a built-in scheduler will delete data from old ledgers that are not used anymore by other parts of the system (external systems included).
 
 The settings that control the automatic maintenance behavior are: `AUTOMATIC_MAINTENANCE_PERIOD`,  `AUTOMATIC_MAINTENANCE_COUNT` and `KNOWN_CURSORS`.
 
-By default, HcNet-core will perform this automatic maintenance, so be sure to disable it until you have done the appropriate data ingestion in downstream systems (Aurora for example sometimes needs to reingest data).
+By default, HcNet-core will perform this automatic maintenance, so be sure to disable it until you have done the appropriate data ingestion in downstream systems (Horizon for example sometimes needs to reingest data).
 
 If you need to regenerate the meta data, the simplest way is to replay ledgers for the range you're interested in after (optionally) clearing the database with `newdb`.
+
+##### Meta data snapshots and restoration
+
+Some deployments of HcNet-core and Horizon will want to retain meta data for the _entire history_ of the network. This meta data can be quite large and computationally expensive to regenerate anew by replaying ledgers in HcNet-core from an empty initial database state, as described in the previous section.
+
+This can be especially costly if run more than once. For instance, when bringing a new node online. Or even if running a single node with Horizon, having already ingested the meta data _once_: a subsequent version of Horizon may have a schema change that entails re-ingesting it _again_.
+
+Some operators therefore prefer to shut down their HcNet-core (and/or Horizon) processes and _take filesystem-level snapshots_ or _database-level dumps_ of the contents of HcNet-core's database and bucket directory, and/or Horizon's database, after meta data generation has occurred the first time. Such snapshots can then be restored, putting HcNet-core and/or Horizon in a state containing meta data without performing full replay.
+
+Any reasonably-recent state will do -- if such a snapshot is a little old, HcNet-core will replay ledgers from whenever the snapshot was taken to the current network state anyways -- but this procedure can greatly accelerate restoring validator nodes, or cloning them to create new ones.
+
 
 #### Buckets
 HcNet-core stores a duplicate copy of the ledger in the form of flat XDR files 
@@ -409,6 +454,15 @@ least, if you are joining an existing network in a read-only capacity, you
 will still need to configure a `get` command to access that network's history 
 archives.
 
+#### Configuring to get data from an archive
+
+You can configure any number of archives to download from: HcNet-core will automatically round-robin between them.
+
+At a minimum you should configure `get` archives for each full validator referenced from your quorum set (see the `HISTORY` field in [validators array](#validators-array) for more detail).
+
+Note: if you notice a lot of errors related to downloading archives, you should check that all archives in your configuration are up to date.
+
+
 #### Configuring to publish to an archive
 Archive sections can also be configured with `put` and `mkdir` commands to
  cause the instance to publish to that archive (for nodes configured as [archiver nodes](#archiver-nodes) or [full validators](#full-validators)).
@@ -417,19 +471,19 @@ The very first time you want to use your archive *before starting your node* you
 `$ HcNet-core new-hist <historyarchive>`
 
 **IMPORTANT:**
- * make sure that you configure both `put` and `mkdir` if `put` doesn't
- automatically create sub-folders
- * writing to the same archive from different nodes is not supported and
- will result in undefined behavior, *potentially data loss*.
- * do not run `newhist` on an existing archive unless you want to erase it.
+
+   * make sure that you configure both `put` and `mkdir` if `put` doesn't automatically create sub-folders
+   * writing to the same archive from different nodes is not supported and will result in undefined behavior, *potentially data loss*.
+   * do not run `newhist` on an existing archive unless you want to erase it.
 
 ### Other preparation
 
 In addition, your should ensure that your operating environment is also functional.
 
 In no particular order:
-* logging and log rotation
-* monitoring and alerting infrastructure
+
+  * logging and log rotation
+  * monitoring and alerting infrastructure
 
 ## Starting your node
 
@@ -481,7 +535,8 @@ Until the node sees a quorum, it will say
 After observing consensus, a new field `quorum` will be set with information on what the network decided on, at this point the node will switch to "*Catching up*":
 ```json
       "quorum" : {
-         "22267866" : {
+         "qset" : {
+            "ledger" : 22267866,
             "agree" : 5,
             "delayed" : 0,
             "disagree" : 0,
@@ -489,6 +544,11 @@ After observing consensus, a new field `quorum` will be set with information on 
             "hash" : "980a24",
             "missing" : 0,
             "phase" : "EXTERNALIZE"
+         },
+         "transitive" : {
+            "intersection" : true,
+            "last_check_ledger" : 22267866,
+            "node_count" : 21
          }
       },
       "state" : "Catching up",
@@ -548,19 +608,20 @@ Information provided here can be used for both human operators and programmatic 
 ### General node information
 Run `$ HcNet-core http-command 'info'`
 The output will look something like
+
 ```json
 {
-      "build" : "v10.2.0",
+      "build" : "v11.1.0",
       "history_failure_rate" : "0",
       "ledger" : {
-         "age" : 1549052313,
+         "age" : 3,
          "baseFee" : 100,
-         "baseReserve" : 100000000,
-         "closeTime" : 0,
-         "hash" : "39c2a3cd4141b2853e70d84601faa44744660334b48f3228e0309342e3f4eb48",
-         "maxTxSetSize" : 100,
-         "num" : 1,
-         "version" : 0
+         "baseReserve" : 5000000,
+         "closeTime" : 1560350852,
+         "hash" : "40d884f6eb105da56bea518513ba9c5cda9a4e45ac824e5eac8f7262c713cc60",
+         "maxTxSetSize" : 1000,
+         "num" : 24311579,
+         "version" : 11
       },
       "network" : "Public Global HcNet Network ; September 2015",
       "peers" : {
@@ -569,58 +630,45 @@ The output will look something like
       },
       "protocol_version" : 10,
       "quorum" : {
-         "22267866" : {
-            "agree" : 5,
+         "qset" : {
+            "agree" : 6,
             "delayed" : 0,
             "disagree" : 0,
-            "fail_at" : 3,
-            "hash" : "980a24",
-            "missing" : 0,
+            "fail_at" : 2,
+            "hash" : "d5c247",
+            "ledger" : 24311579,
+            "missing" : 1,
             "phase" : "EXTERNALIZE"
+         },
+         "transitive" : {
+            "critical" : null,
+            "intersection" : true,
+            "last_check_ledger" : 24311536,
+            "node_count" : 21
          }
       },
-      "startedOn" : "2019-02-01T20:13:43Z",
+      "startedOn" : "2019-06-10T17:40:29Z",
       "state" : "Catching up",
       "status" : [ "Catching up: downloading and verifying buckets: 30/30 (100%)" ]
    }
 }
 ```
 
-`peers` gives information on the connectivity to the network, `authenticated_count` are live connections while `pending_count` are connections that are not fully established yet.
+Some notable fields in `info` are:
 
-`ledger` represents the local state of your node, it may be different from the network state if your node was disconnected from the network for example.
+  * `build` is the build number for this HcNet-core instance
+  * `ledger` represents the local state of your node, it may be different from the network state if your node was disconnected from the network for example. Some important sub-fields:
+    * `age` : time elapsed since this ledger closed (during normal operation less than 10 seconds)
+    * `num` : ledger number
+    * `version` : protocol version supported by this ledger
+  * `network` is the network passphrase that this core instance is connecting to
+  * `peers` gives information on the connectivity to the network
+    * `authenticated_count` are live connections
+    * `pending_count` are connections that are not fully established yet
+  * `protocol_version` is the maximum version of the protocol that this instance recognizes
+  * `state` : indicates the node's synchronization status relative to the network.
+  * `quorum` : summarizes the state of the SCP protocol participants, the same as the information returned by the `quorum` command (see below).
 
-notable fields in ledger are:
-* `age` : time elapsed since this ledger closed (during normal operation less than 10 seconds)
-* `num` : ledger number
-* `version` : protocol version supported by this ledger
-
-
-The state of a fresh node (reset with `newdb`), will look something like this:
-```json
-"ledger" : {
-         "age" : 1519857653,
-         "baseFee" : 100,
-         "baseReserve" : 100000000,
-         "closeTime" : 0,
-         "hash" : "63d98f536ee68d1b27b5b89f23af5311b7569a24faf1403ad0b52b633b07be99",
-         "num" : 2,
-         "version" : 0
-      },
-```
-
-Additional fields typically used by downstream systems:
-* `build` is the build number for this HcNet-core instance
-* `network` is the network passphrase that this core instance is connecting to
-* `protocol_version` is the maximum version of the protocol that this instance recognizes
-
-In some cases, nodes will display additional status information:
-
-```json
-      "status" : [
-         "Armed with network upgrades: upgradetime=2018-01-31T20:00:00Z, protocolversion=9"
-      ]
-```
 ### Overlay information
 
 The `peers` command returns information on the peers the instance is connected to.
@@ -635,6 +683,7 @@ This list is the result of both inbound connections from other peers and outboun
      "inbound" : [
         {
            "address" : "54.161.82.181:11625",
+           "elapsed" : 6,
            "id" : "sdf1",
            "olver" : 5,
            "ver" : "v9.1.0"
@@ -643,12 +692,14 @@ This list is the result of both inbound connections from other peers and outboun
      "outbound" : [
        {
           "address" : "54.211.174.177:11625",
+          "elapsed" : 2303,
           "id" : "sdf2",
           "olver" : 5,
           "ver" : "v9.1.0"
        },
        {
           "address" : "54.160.175.7:11625",
+          "elapsed" : 14082,
           "id" : "sdf3",
           "olver" : 5,
           "ver" : "v9.1.0"
@@ -662,8 +713,9 @@ This list is the result of both inbound connections from other peers and outboun
 }
 ```
 
-### Quorum set Health
+### Quorum Health
 
+#### Quorum set diagnostics
 The `quorum` command allows to diagnose problems with the quorum set of the local node.
 
 Run
@@ -671,23 +723,50 @@ Run
 `$ HcNet-core http-command 'quorum'`
 
 The output looks something like:
+
 ```json
-"474313" : {
-         "agree" : 6,
-         "delayed" : null,
-         "disagree" : null,
-         "fail_at" : 2,
-         "fail_with" : [ "lab1", "lab2" ],
-         "hash" : "d1dacb",
-         "missing" : [ "donovan" ],
-         "phase" : "EXTERNALIZE",
-         "value" : {
-            "t" : 5,
-            "v" : [ "lab1", "lab2", "lab3", "donovan", "GDVFV", "nelisky1", "nelisky2" ]
-         }
+{
+   "node" : "GCTSFJ36M7ZMTSX7ZKG6VJKPIDBDA26IEWRGV65DVX7YVVLBPE5ZWMIO",
+   "qset" : {
+      "agree" : 6,
+      "delayed" : null,
+      "disagree" : null,
+      "fail_at" : 2,
+      "fail_with" : [ "sdf_watcher1", "sdf_watcher2" ],
+      "hash" : "d5c247",
+      "ledger" : 24311847,
+      "missing" : [ "stronghold1" ],
+      "phase" : "EXTERNALIZE",
+      "value" : {
+         "t" : 3,
+         "v" : [
+            "sdf_watcher1",
+            "sdf_watcher2",
+            "sdf_watcher3",
+            {
+               "t" : 3,
+               "v" : [ "stronghold1", "eno", "tempo.eu.com", "satoshipay" ]
+            }
+         ]
+      }
+   },
+   "transitive" : {
+      "critical": [
+         [ "GDM7M262ZJJPV4BZ5SLGYYUTJGIGM25ID2XGKI3M6IDN6QLSTWQKTXQM" ]
+      ],
+      "intersection" : true,
+      "last_check_ledger" : 24311536,
+      "node_count" : 21
+   }
+}
 ```
 
-Entries to watch for are:
+This output has two main sections: `qset` and `transitive`. The former describes the node and its quorum set. The latter describes the transitive closure of the node's quorum set.
+
+##### Per-node quorum-set information
+
+Entries to watch for in the `qset` section -- describing the node and its quorum set -- are:
+
   * `agree` : the number of nodes in the quorum set that agree with this instance.
   * `delayed` : the nodes that are participating to consensus but seem to be behind.
   * `disagree`: the nodes that were participating but disagreed with this instance.
@@ -696,15 +775,15 @@ Entries to watch for are:
   * `missing` : the nodes that were missing during this consensus round.
   * `value` : the quorum set used by this node (`t` is the threshold expressed as a number of nodes).
 
-In the example above, 6 nodes are functioning properly, one is down (`donovan`), and
- the instance will fail if any two nodes out of the ones still working fail as well.
+In the example above, 6 nodes are functioning properly, one is down (`stronghold1`), and
+ the instance will fail if any two nodes still working (or one node and one inner-quorum-set) fail as well.
 
 If a node is stuck in state `Joining SCP`, this command allows to quickly find the reason:
-* too many validators missing (down or without a good connectivity), solutions are:
-  * [adjust quorum set](#crafting-a-quorum-set) (thresholds, grouping, etc) based on the nodes that are not missing
-  * try to get a [better connectivity path](#quorum-and-overlay-network) to the missing validators
 
-* network split would cause SCP to be stuck because of nodes that disagree. This would happen if either there is a bug in SCP, the network does not have quorum intersection or the disagreeing nodes are misbehaving (compromised, etc)
+  * too many validators missing (down or without a good connectivity), solutions are:
+    * [adjust quorum set](#crafting-a-quorum-set) (thresholds, grouping, etc) based on the nodes that are not missing
+    * try to get a [better connectivity path](#quorum-and-overlay-network) to the missing validators
+  * network split would cause SCP to be stuck because of nodes that disagree. This would happen if either there is a bug in SCP, the network does not have quorum intersection or the disagreeing nodes are misbehaving (compromised, etc)
 
 Note that the node not being able to reach consensus does not mean that the network
 as a whole will not be able to reach consensus (and the opposite is true, the network
@@ -713,7 +792,105 @@ may fail because of a different set of validators failing).
 You can get a sense of the quorum set health of a different node by doing
 `$ HcNet-core http-command 'quorum?node=$sdf1` or `$ HcNet-core http-command 'quorum?node=@GABCDE` 
 
-Overall network health can be evaluated by walking through all nodes and looking at their health. Note that this is only an approximation as remote nodes may not have received the same messages (in particular: `missing` for other nodes is not reliable).
+Overall network health can be evaluated by walking through all nodes and looking at their health. Note that this is only an approximation as remote nodes may not have received the same messages (in particular: `missing` for 
+other nodes is not reliable).
+
+##### Transitive closure summary information
+
+When showing quorum-set information about the local node rather than some other
+node, a summary of the transitive closure of the quorum set is also provided in
+the `transitive` field. This has several important sub-fields:
+
+  * `last_check_ledger` : the last ledger in which the transitive closure was checked for quorum intersection. This will reset when the node boots and whenever a node in the transitive quorum changes its quorum set. It may lag behind the last-closed ledger by a few ledgers depending on the computational cost of checking quorum intersection.
+  * `node_count` : the number of nodes in the transitive closure, which are considered when calculating quorum intersection.
+  * `intersection` : whether or not the transitive closure enjoyed quorum intersection at the most recent check. This is of **utmost importance** in preventing network splits. It should always be true. If it is ever false, one or more nodes in the transitive closure of the quorum set is _currently_ misconfigured, and the network is at risk of splitting. Corrective action should be taken immediately, for which two additional sub-fields will be present to help suggest remedies:
+    * `last_good_ledger` : this will note the last ledger for which the `intersection` field was evaluated as true; if some node reconfigured at or around that ledger, reverting that configuration change is the easiest corrective action to take.
+    * `potential_split` : this will contain a pair of lists of validator IDs, which is a potential pair of disjoint quorums that allowed by the current configuration. In other words, a possible split in consensus allowed by the current configuration. This may help narrow down the cause of the misconfiguration: likely the misconfiguration involves too-low a consensus threshold in one of the two potential quorums, and/or the absence of a mandatory trust relationship that would bridge the two.
+  * `critical`: an "advance warning" field that lists nodes that _could cause_ the network to fail to enjoy quorum intersection, if they were misconfigured sufficiently badly. In a healthy transitive network configuration, this field will be `null`. If it is non-`null` then the network is essentially "one misconfiguration" (of the quorum sets of the listed nodes) away from no longer enjoying quorum intersection, and again, corrective action should be taken: careful adjustment to the quorum sets of _nodes that depend on_ the listed nodes, typically to strengthen quorums that depend on them.
+
+#### Detailed transitive quorum analysis
+
+The quorum endpoint can also retrieve detailed information for the transitive quorum.
+
+This is an easier to process format than what `scp` returns as it doesn't contain all SCP messages.
+
+`$ HcNet-core http-command 'quorum?transitive=true'`
+
+The output looks something like:
+
+```json
+{
+ "critical": null,
+ "intersection" : true,
+ "last_check_ledger" : 121235,
+ "node_count" : 4,
+ "nodes" : [
+      {
+         "distance" : 0,
+         "heard" : 121235,
+         "node" : "GB7LI",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      },
+      {
+         "distance" : 1,
+         "heard" : 121235,
+         "node" : "sdf2",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      },
+      {
+         "distance" : 1,
+         "heard" : 121235,
+         "node" : "sdf3",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      },
+      {
+         "distance" : 1,
+         "heard" : 121235,
+         "node" : "sdf1",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      }
+   ]
+}
+```
+
+The output begins with the same summary information as in the `transitive` block
+of the non-transitive query (if queried for the local node), but also includes
+a `nodes` array that represents a walk of the transitive quorum centered on
+the query node.
+
+Fields are:
+
+* `node` : the identity of the validator
+* `distance` : how far that node is from the root node (ie. how many quorum set hops)
+* `heard` : the latest ledger sequence number that this node voted at
+* `qset` : the node's quorum set
+* `status` : one of `behind|tracking|ahead` (compared to the root node) or `missing|unknown` (when there are no recent SCP messages for that node)
+* `value_id` : a unique ID for what the node is voting for (allows to quickly tell if nodes are voting for the same thing)
+* `value` : what the node is voting for
 
 ## Validator maintenance
 
@@ -731,12 +908,12 @@ If you're changing your quorum set configuration, also read the [section on what
 
 We recommend performing the following steps in order (repeat sequentially as needed if you run multiple nodes).
 
-1. Advertise your intention to others that may depend on you. Some coordination is required to avoid situations where too many nodes go down at the same time.
-2. Dependencies should assess the health of their quorum, refer to the section
- "Understanding quorum and reliability".
-3. If there is no objection, take your instance down
-4. When done, start your instance that should rejoin the network
-5. The instance will be completely caught up when it's both `Synced` and *there is no backlog in uploading history*.
+  1. Advertise your intention to others that may depend on you. Some coordination is required to avoid situations where too many nodes go down at the same time.
+  2. Dependencies should assess the health of their quorum, refer to the section
+     "Understanding quorum and reliability".
+  3. If there is no objection, take your instance down
+  4. When done, start your instance that should rejoin the network
+  5. The instance will be completely caught up when it's both `Synced` and *there is no backlog in uploading history*.
 
 ## Network configuration
 
@@ -747,10 +924,11 @@ This is performed by validators voting for and agreeing to new values the same w
 A node can be configured to vote for upgrades using the `upgrades` endpoint . see [`commands.md`](commands.md) for more information.
 
 The network settings are:
- * the version of the protocol used to process transactions
- * the maximum number of transactions that can be included in a given ledger close
- * the cost (fee) associated with processing operations
- * the base reserve used to calculate the lumen balance needed to store things in the ledger
+
+  * the version of the protocol used to process transactions
+  * the maximum number of transactions that can be included in a given ledger close
+  * the cost (fee) associated with processing operations
+  * the base reserve used to calculate the lumen balance needed to store things in the ledger
 
 When the network time is later than the `upgradetime` specified in
 the upgrade settings, the validator will vote to update the network
@@ -764,13 +942,15 @@ For a new value to be adopted, the same level of consensus between nodes needs t
 
 Changes to network wide settings have to be orchestrated properly between
 validators as well as non validating nodes:
-* a change is vetted between operators (changes can be bundled)
-* an effective date in the future is picked for the change to take effect (controlled by `upgradetime`)
-* if applicable, communication is sent out to all network users
+
+  * a change is vetted between operators (changes can be bundled)
+  * an effective date in the future is picked for the change to take effect (controlled by `upgradetime`)
+  * if applicable, communication is sent out to all network users
 
 An improper plan may cause issues such as:
-* nodes missing consensus (aka "getting stuck"), and having to use history to rejoin
-* network reconfiguration taking effect at a non deterministic time (causing fees to change ahead of schedule for example)
+
+  * nodes missing consensus (aka "getting stuck"), and having to use history to rejoin
+  * network reconfiguration taking effect at a non deterministic time (causing fees to change ahead of schedule for example)
 
 For more information look at [`docs/versioning.md`](../versioning.md).
 
@@ -778,9 +958,9 @@ For more information look at [`docs/versioning.md`](../versioning.md).
 
 Example here is to upgrade the protocol version to version 9 on January-31-2018.
 
-1. `$ HcNet-core http-command 'upgrades?mode=set&upgradetime=2018-01-31T20:00:00Z&protocolversion=9'`
+  1. `$ HcNet-core http-command 'upgrades?mode=set&upgradetime=2018-01-31T20:00:00Z&protocolversion=9'`
+  2. `$ HcNet-core http-command info`
 
-2. `$ HcNet-core http-command info`
 At this point `info` will tell you that the node is setup to vote for this upgrade:
 ```json
       "status" : [
@@ -810,7 +990,7 @@ HcNet-core can be gracefully exited at any time by delivering `SIGINT` or
 
 HcNet-core can also be packaged in a container system such as Docker, so long 
 as `BUCKET_DIR_PATH` and the database are stored on persistent volumes. For an
-example, see [docker-HcNet-core](https://github.com/HcNet/docker-HcNet-core-Aurora).
+example, see [docker-HcNet-core](https://github.com/HcNet/docker-HcNet-core-horizon).
 
 ### In depth architecture
 

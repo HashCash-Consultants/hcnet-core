@@ -40,13 +40,7 @@ class LocalNode
 
     SCPQuorumSet const& getQuorumSet();
     Hash const& getQuorumSetHash();
-    SecretKey const& getSecretKey();
     bool isValidator();
-
-    SCP::TriBool isNodeInQuorum(
-        NodeID const& node,
-        std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
-        std::map<NodeID, std::vector<SCPStatement const*>> const& map) const;
 
     // returns the quorum set {{X}}
     static SCPQuorumSetPtr getSingletonQSet(NodeID const& nodeID);
@@ -99,8 +93,13 @@ class LocalNode
             [](SCPStatement const&) { return true; },
         NodeID const* excluded = nullptr);
 
-    Json::Value toJson(SCPQuorumSet const& qSet) const;
+    static Json::Value toJson(SCPQuorumSet const& qSet,
+                              std::function<std::string(PublicKey const&)> r);
+
+    Json::Value toJson(SCPQuorumSet const& qSet, bool fullKeys) const;
     std::string to_string(SCPQuorumSet const& qSet) const;
+
+    static uint64 computeWeight(uint64 m, uint64 total, uint64 threshold);
 
   protected:
     // returns a quorum set {{ nodeID }}
@@ -111,7 +110,5 @@ class LocalNode
                                       std::vector<NodeID> const& nodeSet);
     static bool isVBlockingInternal(SCPQuorumSet const& qset,
                                     std::vector<NodeID> const& nodeSet);
-    static void forAllNodesInternal(SCPQuorumSet const& qset,
-                                    std::function<void(NodeID const&)> proc);
 };
 }

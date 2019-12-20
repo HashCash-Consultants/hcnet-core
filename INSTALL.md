@@ -1,3 +1,30 @@
+Installation Instructions
+==================
+These are instructions for building HcNet-core from source.
+
+For a potentially quicker set up, the following projects could be good alternatives:
+
+* HcNet-core in a [docker container](https://github.com/HcNet/docker-HcNet-core-horizon)
+* pre-compiled [packages](https://github.com/HcNet/packages)
+
+## Picking a version to run
+
+Best is to use the latest *stable* release that can be downloaded from https://github.com/HcNet/HcNet-core/releases
+
+
+Alternatively, branches are organized in the following way:
+
+| branch name | description | quality bar |
+| ----------- | ----------- | ----------- |
+| master      | development branch | all unit tests passing |
+| testnet     | version deployed to testnet | acceptance tests passing |
+| prod        | version currently deployed on the live network | no recall class issue found in testnet and staging |
+
+For convenience, we also keep a record in the form of release tags of the
+ versions that make it to production:
+ * pre-releases are versions that get deployed to testnet
+ * releases are versions that made it all the way in prod
+
 ## Build Dependencies
 
 - c++ toolchain and headers that supports c++14
@@ -34,7 +61,7 @@ After installing packages, head to [building with clang and libc++](#building-wi
 
 #### Installing packages
     # common packages
-    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev
+    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel
     # if using clang
     sudo apt-get install clang-5.0
     # clang with libstdc++
@@ -62,6 +89,7 @@ When building on OSX, here's some dependencies you'll need:
 - brew install pkg-config
 - brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
 - brew install pandoc
+- brew install parallel (required for running tests)
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
@@ -74,7 +102,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule update`
 - Type `./autogen.sh`.
 - Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-6 ./configure` or similar, depending on your compiler.)*
-- Type `make` or `make -j` (for aggressive parallel build)
+- Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
 - Type `make check` to run tests.
 - Type `make install` to install.
 

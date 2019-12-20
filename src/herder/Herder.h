@@ -6,6 +6,8 @@
 
 #include "TxSetFrame.h"
 #include "Upgrades.h"
+#include "herder/QuorumTracker.h"
+#include "herder/TransactionQueue.h"
 #include "lib/json/json-forwards.h"
 #include "overlay/Peer.h"
 #include "overlay/HcNetXDR.h"
@@ -65,16 +67,6 @@ class Herder
         HERDER_NUM_STATE
     };
 
-    enum TransactionSubmitStatus
-    {
-        TX_STATUS_PENDING = 0,
-        TX_STATUS_DUPLICATE,
-        TX_STATUS_ERROR,
-        TX_STATUS_COUNT
-    };
-
-    static const char* TX_STATUS_STRING[TX_STATUS_COUNT];
-
     enum EnvelopeStatus
     {
         // for some reason this envelope was discarded - either is was invalid,
@@ -107,7 +99,8 @@ class Herder
                                   SCPQuorumSet const& qset) = 0;
     virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
     // We are learning about a new transaction.
-    virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
+    virtual TransactionQueue::AddResult
+    recvTransaction(TransactionFramePtr tx) = 0;
     virtual void peerDoesntHave(HcNet::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;
     virtual TxSetFramePtr getTxSet(Hash const& hash) = 0;
@@ -146,8 +139,13 @@ class Herder
     {
     }
 
-    virtual Json::Value getJsonInfo(size_t limit) = 0;
+    virtual Json::Value getJsonInfo(size_t limit, bool fullKeys = false) = 0;
     virtual Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
-                                          uint64 index = 0) = 0;
+                                          bool fullKeys, uint64 index) = 0;
+    virtual Json::Value getJsonTransitiveQuorumInfo(NodeID const& id,
+                                                    bool summary,
+                                                    bool fullKeys) = 0;
+    virtual QuorumTracker::QuorumMap const&
+    getCurrentlyTrackedQuorum() const = 0;
 };
 }

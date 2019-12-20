@@ -14,6 +14,7 @@ namespace medida
 class Counter;
 class Meter;
 class Timer;
+class Histogram;
 }
 
 namespace HcNet
@@ -90,7 +91,6 @@ class HerderSCPDriver : public SCPDriver
 
     // envelope handling
     void signEnvelope(SCPEnvelope& envelope) override;
-    bool verifyEnvelope(SCPEnvelope const& envelope) override;
     void emitEnvelope(SCPEnvelope const& envelope) override;
 
     // value validation
@@ -135,6 +135,14 @@ class HerderSCPDriver : public SCPDriver
 
     optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
+    // converts a Value into a HcNetValue
+    // returns false on error
+    bool toHcNetValue(Value const& v, HcNetValue& sv);
+
+    // validate close time as much as possible
+    bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
+                        HcNetValue const& b) const;
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
@@ -146,8 +154,6 @@ class HerderSCPDriver : public SCPDriver
     struct SCPMetrics
     {
         medida::Meter& mEnvelopeSign;
-        medida::Meter& mEnvelopeValidSig;
-        medida::Meter& mEnvelopeInvalidSig;
 
         medida::Meter& mValueValid;
         medida::Meter& mValueInvalid;
@@ -164,10 +170,20 @@ class HerderSCPDriver : public SCPDriver
 
     SCPMetrics mSCPMetrics;
 
+    // Nomination timeouts per ledger
+    medida::Histogram& mNominateTimeout;
+    // Prepare timeouts per ledger
+    medida::Histogram& mPrepareTimeout;
+
     struct SCPTiming
     {
         optional<VirtualClock::time_point> mNominationStart;
         optional<VirtualClock::time_point> mPrepareStart;
+
+        // Nomination timeouts before first prepare
+        int64_t mNominationTimeoutCount{0};
+        // Prepare timeouts before externalize
+        int64_t mPrepareTimeoutCount{0};
     };
 
     // Map of time points for each slot to measure key protocol metrics:
@@ -196,11 +212,9 @@ class HerderSCPDriver : public SCPDriver
 
     void stateChanged();
 
-    bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
-                        HcNetValue const& b) const;
-
-    SCPDriver::ValidationLevel
-    validateValueHelper(uint64_t slotIndex, HcNetValue const& sv) const;
+    SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
+                                                   HcNetValue const& sv,
+                                                   bool nomination) const;
 
     // returns true if the local instance is in a state compatible with
     // this slot

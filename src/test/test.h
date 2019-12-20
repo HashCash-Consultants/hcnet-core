@@ -19,8 +19,6 @@ struct CommandLineArgs;
 Config const& getTestConfig(int instanceNumber = 0,
                             Config::TestDbMode mode = Config::TESTDB_DEFAULT);
 
-int test(int argc, char* const* argv, el::Level logLevel,
-         std::vector<std::string> const& metrics);
 int runTest(CommandLineArgs const& args);
 
 extern bool force_sqlite;
@@ -36,11 +34,20 @@ void for_versions_from(std::vector<uint32> const& versions, Application& app,
 
 void for_all_versions(Application& app, std::function<void(void)> const& f);
 
+void for_all_versions(Config const& cfg,
+                      std::function<void(Config const&)> const& f);
+
 void for_versions(uint32 from, uint32 to, Application& app,
                   std::function<void(void)> const& f);
 
 void for_versions(std::vector<uint32> const& versions, Application& app,
                   std::function<void(void)> const& f);
+
+void for_versions(uint32 from, uint32 to, Config const& cfg,
+                  std::function<void(Config const&)> const& f);
+
+void for_versions(std::vector<uint32> const& versions, Config const& cfg,
+                  std::function<void(Config const&)> const& f);
 
 void for_all_versions_except(std::vector<uint32> const& versions,
                              Application& app,

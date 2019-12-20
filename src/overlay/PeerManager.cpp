@@ -161,6 +161,45 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
     return result;
 }
 
+void
+PeerManager::removePeersWithManyFailures(int minNumFailures,
+                                         PeerBareAddress const* address)
+{
+    try
+    {
+        auto& db = mApp.getDatabase();
+        auto sql = std::string{
+            "DELETE FROM peers WHERE numfailures >= :minNumFailures"};
+        if (address)
+        {
+            sql += " AND ip = :ip";
+        }
+
+        auto prep = db.getPreparedStatement(sql);
+        auto& st = prep.statement();
+
+        st.exchange(use(minNumFailures));
+
+        std::string ip;
+        if (address)
+        {
+            ip = address->getIP();
+            st.exchange(use(ip));
+        }
+        st.define_and_bind();
+
+        {
+            auto timer = db.getDeleteTimer("peer");
+            st.execute(true);
+        }
+    }
+    catch (soci_error& err)
+    {
+        CLOG(ERROR, "Overlay")
+            << "PeerManager::removePeersWithManyFailures error: " << err.what();
+    }
+}
+
 std::vector<PeerBareAddress>
 PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
 {
@@ -362,6 +401,8 @@ PeerManager::ensureExists(PeerBareAddress const& address)
     auto peer = load(address);
     if (!peer.second)
     {
+        CLOG(TRACE, "Overlay") << "Learned peer " << address.toString() << " @"
+                               << mApp.getConfig().PEER_PORT;
         store(address, peer.first, peer.second);
     }
 }
@@ -478,7 +519,7 @@ const char* PeerManager::kSQLCreateStatement =
     "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"
     "nextattempt   TIMESTAMP NOT NULL,"
     "numfailures   INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL,"
-    "flags         INT NOT NULL,"
+    "type          INT NOT NULL,"
     "PRIMARY KEY (ip, port)"
     ");";
 }

@@ -19,9 +19,12 @@ Common options can be placed at any place in the command line.
 Command options can only by placed after command.
 
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
-  archives without connecting to network. This option will catchup to
-  DESTINATION-LEDGER keeping history from DESTINATION-LEDGER-LEDGER-COUNT or
-  from the last closed ledger (whichever value is biggest).
+  archives without connecting to network. For new instances (with empty history
+  tables - only ledger 1 present in the database) it will respect LEDGER-COUNT
+  configuration and it will perform bucket application on such a checkpoint
+  that at least LEDGER-COUNT entries are present in history table afterwards.
+  For instances that already have some history entries, all ledgers since last
+  closed ledger will be replayed.
 * **check-quorum**:   Check quorum intersection from history to ensure there is
   closure over all the validators in the network.
 * **convert-id <ID>**: Will output the passed ID in all known forms and then
@@ -81,7 +84,7 @@ Command options can only by placed after command.
   unless <FILE-NAME> is "-" in which case the transaction envelope is read from
   standard input and the signing key is read from `/dev/tty`.  In either event,
   if the signing key appears to be coming from a terminal, HcNet-core
-  disables echo. Note that if you do not have a STELLAR_NETWORK_ID environment
+  disables echo. Note that if you do not have a HcNet_NETWORK_ID environment
   variable, then before this argument you must specify the --netid option. For
   example, the production HcNet network is "`Public Global HcNet Network ;
   September 2015`" while the test network is "`Test SDF Network ; September
@@ -99,7 +102,9 @@ Command options can only by placed after command.
     on possible options for test.
   * For example this will run just the tests tagged with `[tx]` using protocol
     versions 9 and 10 and stop after the first failure:
-    `HcNet-core --test -a --version 9 --version 10 "[tx]"`
+    `HcNet-core test -a --version 9 --version 10 "[tx]"`
+* **upgrade-db**: Upgrades local database to current schema version. This is
+  usually done automatically during HcNet-core run or other command.
 * **version**: Print version info and then exit.
 * **write-quorum**: Print a quorum set graph from history.
 
@@ -109,13 +114,8 @@ You can send commands to HcNet-core via a web browser, curl, or using the --c
 command line option (see above). Most commands return their results in JSON
 format.
 
-* **help**
-  Prints a list of currently supported commands.
-
-* **catchup** 
-  `/catchup?ledger=NNN[&mode=MODE]`<br>
-  Triggers the instance to catch up to ledger NNN from history;
-  Mode is either 'minimal' (the default, if omitted) or 'complete'.
+* **bans**
+  List current active bans
 
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
@@ -125,27 +125,34 @@ format.
   it to the archive.
 
 * **connect**
-  `/connect?peer=NAME&port=NNN`<br>
+  `connect?peer=NAME&port=NNN`<br>
   Triggers the instance to connect to peer NAME at port NNN.
 
 * **dropcursor**  
-  `/dropcursor?id=XYZ`<br>
-  deletes the tracking cursor with identified by `id`. See `setcursor` for
+  `dropcursor?id=ID`<br>
+  Deletes the tracking cursor identified by `id`. See `setcursor` for
   more information.
+
+* **droppeer**
+  `droppeer?node=NODE_ID[&ban=D]`<br>
+  Drops peer identified by NODE_ID, when D is 1 the peer is also banned.
 
 * **info**
   Returns information about the server in JSON format (sync state, connected
   peers, etc).
 
 * **ll**  
-  `/ll?level=L[&partition=P]`<br>
+  `ll?level=L[&partition=P]`<br>
   Adjust the log level for partition P where P is one of Bucket, Database, Fs,
   Herder, History, Ledger, Overlay, Process, SCP, Tx (or all if no partition is
   specified). Level is one of FATAL, ERROR, WARNING, INFO, DEBUG, VERBOSE,
   TRACE.
 
+* **logrotate**
+  Rotate log files.
+
 * **maintenance**
-  `/maintenance?[queue=true]`<br>
+  `maintenance?[queue=true]`<br>
   Performs maintenance tasks on the instance.
    * `queue` performs deletion of queue data. See `setcursor` for more information.
 
@@ -154,22 +161,29 @@ format.
   purpose).
 
 * **clearmetrics**
-  `/clearmetrics?[domain=DOMAIN]`<br>
+  `clearmetrics?[domain=DOMAIN]`<br>
   Clear metrics for a specified domain. If no domain specified, clear all
   metrics (for testing purposes).
 
-* **peers**
+* **peers?[&fullkeys=true]**
   Returns the list of known peers in JSON format.
+  If `fullkeys` is set, outputs unshortened public keys.
 
 * **quorum**
-  `/quorum?[node=NODE_ID][&compact=true]`<br>
-  returns information about the quorum for node NODE_ID (this node by default).
-  NODE_ID is either a full key (`GABCD...`), an alias (`$name`) or an
-  abbreviated ID (`@GABCD`). If compact is set, only returns a summary version.
+  `quorum?[node=NODE_ID][&compact=true][&fullkeys=true][&transitive=true]`<br>
+  Returns information about the quorum for `NODE_ID` (local node by default).
+  If `transitive` is set, information is for the transitive quorum centered on `NODE_ID`, otherwise only for nodes in the quorum set of `NODE_ID`.
+
+  `NODE_ID` is either a full key (`GABCD...`), an alias (`$name`) or an
+  abbreviated ID (`@GABCD`).
+
+  If `compact` is set, only returns a summary version.
+
+  If `fullkeys` is set, outputs unshortened public keys.
 
 * **setcursor**
-  `/setcursor?id=ID&cursor=N`<br>
-  sets or creates a cursor identified by `ID` with value `N`. ID is an
+  `setcursor?id=ID&cursor=N`<br>
+  Sets or creates a cursor identified by `ID` with value `N`. ID is an
   uppercase AlphaNum, N is an uint32 that represents the last ledger sequence
   number that the instance ID processed. Cursors are used by dependent services
   to tell HcNet-core which data can be safely deleted by the instance. The
@@ -180,18 +194,18 @@ format.
   `dropcursor`.
 
 * **getcursor**
-  `/getcursor?[id=ID]`<br>
-  gets the cursor identified by `ID`. If ID is not defined then all cursors
+  `getcursor?[id=ID]`<br>
+  Gets the cursor identified by `ID`. If ID is not defined then all cursors
   will be returned.
 
 * **scp**
-  `/scp?[limit=n]`<br>
+  `scp?[limit=n][&fullkeys=true]`<br>
   Returns a JSON object with the internal state of the SCP engine for the last
-  n (default 2) ledgers.
+  n (default 2) ledgers. Outputs unshortened public keys if fullkeys is set.
 
 * **tx**
-  `/tx?blob=Base64`<br>
-  submit a [transaction](../../learn/concepts/transactions.md) to the network.
+  `tx?blob=Base64`<br>
+  Submit a transaction to the network.
   blob is a base64 encoded XDR serialized 'TransactionEnvelope', and it
   returns a JSON object with the following properties
   status:
@@ -202,11 +216,11 @@ format.
             Base64 encoded, XDR serialized 'TransactionResult'
 
 * **upgrades**
-  * `/upgrades?mode=get`<br>
-    retrieves the currently configured upgrade settings<br>
-  * `/upgrades?mode=clear`<br>
-    clears any upgrade settings<br>
-  * `/upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]`<br>
+  * `upgrades?mode=get`<br>
+    Retrieves the currently configured upgrade settings.<br>
+  * `upgrades?mode=clear`<br>
+    Clears any upgrade settings.<br>
+  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]`<br>
     * upgradetime is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
         It is the time the upgrade will be scheduled for. If it is in the past,
         the upgrade will occur immediately.<br>
@@ -227,7 +241,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload**
-  `/generateload[?mode=(create|pay)&accounts=N&offset=K&txs=M&txrate=(R|auto)&batchsize=L]`<br>
+  `generateload[?mode=(create|pay)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L]`<br>
   Artificially generate load for testing; must be used with
   `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true. Depending on the mode,
   either creates new accounts or generates payments on accounts specified
@@ -239,13 +253,13 @@ format.
   ledger to close.
 
 * **testacc**
-  `/testacc?name=N`<br>
+  `testacc?name=N`<br>
   Returns basic information about the account identified by name. Note that N
   is a string used as seed, but "root" can be used as well to specify the root
   account used for the test instance.
 
 * **testtx**
-  `/testtx?from=F&to=T&amount=N&[create=true]`<br>
+  `testtx?from=F&to=T&amount=N&[create=true]`<br>
   Injects a payment transaction (or a create transaction if "create" is
   specified) from the account F to the account T, sending N XLM to the account.
   Note that F and T are seed strings but can also be specified as "root" as

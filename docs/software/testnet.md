@@ -16,7 +16,7 @@ when you want to start your own network you need to start SCP manually.
 this is done by:
 
 ```sh
-$ HcNet-core --forcescp
+$ HcNet-core force-scp
 ```
 
 That will set state in the DB and then exit. The next time you start
@@ -36,13 +36,13 @@ Optionally: Create databases for each to use--e.g., by using PostgreSQL's `creat
 
 Run:
 
-1. `$ HcNet-core --newhist <historyarchive>`
+1. `$ HcNet-core new-hist <historyarchive>`
   - to initialize every history archive you are putting to (be sure to not push to the same archive from different nodes).
-2. `$ HcNet-core --newdb`
+2. `$ HcNet-core new-db`
   - to initialize the database on each node. 
-3. `$ HcNet-core --forcescp`
+3. `$ HcNet-core force-scp`
   - to set a flag to force each node to start SCP immediatly rather than wait to hear from the network. 
-4. `$ HcNet-core` 
+4. `$ HcNet-core run`
   - on each node to start it.
 
 ## Bringing a test network back up
@@ -51,8 +51,8 @@ If you need to restart the network after bringing it down.
 Stop all nodes, and do the following on nodes that all have the same last ledger (NB: this set must form a quorum in order to reach consensus):
 
 ```sh
-$ HcNet-core --forcescp
-$ HcNet-core
+$ HcNet-core force-scp
+$ HcNet-core run
 ```
 
 This will start from the last saved state of each server. After these servers sync you can start the other nodes in the cluster normally and they will catch up to the network.

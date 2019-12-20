@@ -4,17 +4,20 @@
 
 #include "main/ApplicationUtils.h"
 #include "bucket/Bucket.h"
+#include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
+#include "database/Database.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
+#include "main/ErrorMessages.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/HcNetCoreVersion.h"
 #include "util/Logging.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #include <lib/http/HttpClient.h>
 #include <locale>
@@ -22,76 +25,65 @@
 namespace HcNet
 {
 
-namespace
-{
-bool
-checkInitialized(Application::pointer app)
-{
-    try
-    {
-        // check to see if the state table exists
-        app->getPersistentState().getState(PersistentState::kDatabaseSchema);
-    }
-    catch (...)
-    {
-        LOG(INFO) << "* ";
-        LOG(INFO) << "* The database has not yet been initialized. Try --newdb";
-        LOG(INFO) << "* ";
-        return false;
-    }
-    return true;
-}
-}
-
 int
 runWithConfig(Config cfg)
 {
     if (cfg.MANUAL_CLOSE)
     {
+        if (!cfg.NODE_IS_VALIDATOR)
+        {
+            LOG(ERROR) << "Starting HcNet-core in MANUAL_CLOSE mode requires "
+                          "NODE_IS_VALIDATOR to be set";
+            return 1;
+        }
+
         // in manual close mode, we set FORCE_SCP
         // so that the node starts fully in sync
         // (this is to avoid to force scp all the time when testing)
         cfg.FORCE_SCP = true;
     }
 
-    LOG(INFO) << "Starting HcNet-core " << STELLAR_CORE_VERSION;
+    LOG(INFO) << "Starting HcNet-core " << HcNet_CORE_VERSION;
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer app;
     try
     {
         app = Application::create(clock, cfg, false);
 
-        if (!checkInitialized(app))
+        if (!app->getHistoryArchiveManager().checkSensibleConfig())
         {
-            return 0;
+            return 1;
         }
-        else
+        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
         {
-            if (!app->getHistoryArchiveManager().checkSensibleConfig())
-            {
-                return 1;
-            }
-            if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-            {
-                LOG(WARNING) << "Artificial acceleration of time enabled "
-                             << "(for testing only)";
-            }
-
-            app->start();
-
-            app->applyCfgCommands();
+            LOG(WARNING) << "Artificial acceleration of time enabled "
+                         << "(for testing only)";
         }
+
+        app->start();
+
+        app->applyCfgCommands();
     }
-    catch (std::exception& e)
+    catch (std::exception const& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
+        LOG(FATAL) << REPORT_INTERNAL_BUG;
         return 1;
     }
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
-    while (!io.stopped())
+
+    try
     {
-        clock.crank();
+        auto& io = clock.getIOContext();
+        asio::io_context::work mainWork(io);
+        while (!io.stopped())
+        {
+            clock.crank();
+        }
+    }
+    catch (std::exception const& e)
+    {
+        LOG(FATAL) << "Got an exception: " << e.what();
+        throw; // propagate exception (core dump, etc)
     }
     return 0;
 }
@@ -144,53 +136,32 @@ httpCommand(std::string const& command, unsigned short port)
 }
 
 void
-loadXdr(Config cfg, std::string const& bucketFile)
-{
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-    if (checkInitialized(app))
-    {
-        uint256 zero;
-        Bucket bucket(bucketFile, zero);
-        bucket.apply(*app);
-    }
-    else
-    {
-        LOG(INFO) << "Database is not initialized";
-    }
-}
-
-void
 setForceSCPFlag(Config cfg, bool set)
 {
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
 
-    if (checkInitialized(app))
+    app->getPersistentState().setState(PersistentState::kForceSCPOnNextLaunch,
+                                       (set ? "true" : "false"));
+    if (set)
     {
-        app->getPersistentState().setState(
-            PersistentState::kForceSCPOnNextLaunch, (set ? "true" : "false"));
-        if (set)
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* The `force scp` flag has been set in the db.";
-            LOG(INFO) << "* ";
-            LOG(INFO)
-                << "* The next launch will start scp from the account balances";
-            LOG(INFO) << "* as they stand in the db now, without waiting to "
-                         "hear from";
-            LOG(INFO) << "* the network.";
-            LOG(INFO) << "* ";
-        }
-        else
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* The `force scp` flag has been cleared.";
-            LOG(INFO) << "* The next launch will start normally.";
-            LOG(INFO) << "* ";
-        }
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The `force scp` flag has been set in the db.";
+        LOG(INFO) << "* ";
+        LOG(INFO)
+            << "* The next launch will start scp from the account balances";
+        LOG(INFO) << "* as they stand in the db now, without waiting to "
+                     "hear from";
+        LOG(INFO) << "* the network.";
+        LOG(INFO) << "* ";
+    }
+    else
+    {
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The `force scp` flag has been cleared.";
+        LOG(INFO) << "* The next launch will start normally.";
+        LOG(INFO) << "* ";
     }
 }
 
@@ -213,15 +184,82 @@ showOfflineInfo(Config cfg)
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    if (checkInitialized(app))
+    app->reportInfo();
+}
+
+#ifdef BUILD_TESTS
+void
+loadXdr(Config cfg, std::string const& bucketFile)
+{
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+
+    uint256 zero;
+    Bucket bucket(bucketFile, zero);
+    bucket.apply(*app);
+}
+
+int
+rebuildLedgerFromBuckets(Config cfg)
+{
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+
+    auto& ps = app->getPersistentState();
+    auto lcl = ps.getState(PersistentState::kLastClosedLedger);
+    auto hasStr = ps.getState(PersistentState::kHistoryArchiveState);
+    auto pass = ps.getState(PersistentState::kNetworkPassphrase);
+
+    LOG(INFO) << "Re-initializing database ledger tables.";
+    auto& db = app->getDatabase();
+    auto& session = app->getDatabase().getSession();
+    soci::transaction tx(session);
+
+    db.initialize();
+    db.upgradeToCurrentSchema();
+    db.clearPreparedStatementCache();
+    LOG(INFO) << "Re-initialized database ledger tables.";
+
+    LOG(INFO) << "Re-storing persistent state.";
+    ps.setState(PersistentState::kLastClosedLedger, lcl);
+    ps.setState(PersistentState::kHistoryArchiveState, hasStr);
+    ps.setState(PersistentState::kNetworkPassphrase, pass);
+
+    LOG(INFO) << "Applying buckets from LCL bucket list.";
+    std::map<std::string, std::shared_ptr<Bucket>> localBuckets;
+    auto& ws = app->getWorkScheduler();
+
+    HistoryArchiveState has;
+    has.fromString(hasStr);
+    has.prepareForPublish(*app);
+
+    auto applyBucketsWork = ws.executeWork<ApplyBucketsWork>(
+        localBuckets, has, Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+        /* resolveMerges */ false);
+    auto ok = applyBucketsWork->getState() == BasicWork::State::WORK_SUCCESS;
+    if (ok)
     {
-        app->reportInfo();
+        tx.commit();
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Rebuilt ledger from buckets successfully.";
+        LOG(INFO) << "*";
     }
     else
     {
-        LOG(INFO) << "Database is not initialized";
+        tx.rollback();
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Rebuild of ledger failed.";
+        LOG(INFO) << "*";
     }
+
+    app->gracefulStop();
+    while (clock.crank(true))
+        ;
+    return ok ? 0 : 1;
 }
+#endif
 
 int
 reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
@@ -230,20 +268,15 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
 
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
-
-    auto state = HistoryArchiveState{};
-    auto& wm = app->getWorkManager();
+    auto& wm = app->getWorkScheduler();
     auto getHistoryArchiveStateWork =
-        wm.executeWork<GetHistoryArchiveStateWork>(
-            "get-history-archive-state-work", state);
+        wm.executeWork<GetHistoryArchiveStateWork>();
 
-    auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
+    auto ok = getHistoryArchiveStateWork->getState() ==
+              BasicWork::State::WORK_SUCCESS;
     if (ok)
     {
+        auto state = getHistoryArchiveStateWork->getHistoryArchiveState();
         std::string filename = outputFile.empty() ? "-" : outputFile;
 
         if (filename == "-")
@@ -326,22 +359,18 @@ int
 catchup(Application::pointer app, CatchupConfiguration cc,
         Json::Value& catchupInfo)
 {
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
-
     app->start();
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, true);
+        app->getLedgerManager().startCatchup(cc);
     }
     catch (std::invalid_argument const&)
     {
         LOG(INFO) << "*";
         LOG(INFO) << "* Target ledger " << cc.toLedger()
-                  << " is not newer than last closed ledger"
+                  << " is not newer than last closed ledger "
+                  << app->getLedgerManager().getLastClosedLedgerNum()
                   << " - nothing to do";
         LOG(INFO) << "* If you really want to catchup to " << cc.toLedger()
                   << " run HcNet-core new-db";
@@ -350,9 +379,9 @@ catchup(Application::pointer app, CatchupConfiguration cc,
     }
 
     auto& clock = app->getClock();
-    auto& io = clock.getIOService();
+    auto& io = clock.getIOContext();
     auto synced = false;
-    asio::io_service::work mainWork(io);
+    asio::io_context::work mainWork(io);
     auto done = false;
     while (!done && clock.crank(true))
     {
@@ -365,27 +394,16 @@ catchup(Application::pointer app, CatchupConfiguration cc,
         }
         case LedgerManager::LM_SYNCED_STATE:
         {
+            done = true;
+            synced = true;
             break;
         }
         case LedgerManager::LM_CATCHING_UP_STATE:
         {
-            switch (app->getLedgerManager().getCatchupState())
+            if (app->getLedgerManager().getCatchupState() ==
+                LedgerManager::CatchupState::NONE)
             {
-            case LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER:
-            {
-                done = true;
-                synced = true;
-                break;
-            }
-            case LedgerManager::CatchupState::NONE:
-            {
-                done = true;
-                break;
-            }
-            default:
-            {
-                break;
-            }
+                abort();
             }
             break;
         }
@@ -412,16 +430,11 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 int
 publish(Application::pointer app)
 {
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
-
     app->start();
 
     auto& clock = app->getClock();
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
+    auto& io = clock.getIOContext();
+    asio::io_context::work mainWork(io);
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
     auto isCheckpoint =

@@ -20,6 +20,12 @@
 *.trs
 *.db
 
+# sourcetrail
+compile_commands.json
+*.srctrlbm
+*.srctrldb
+*.srctrlprj
+
 # text editors
 *~
 *.swp
@@ -32,7 +38,7 @@
 /INSTALL
 
 /src/main/HcNetCoreVersion.cpp
-/src/testdata
+
 /src/xdr/*.h
 /Makefile
 /Makefile.in
@@ -59,8 +65,8 @@
 /test-driver
 /stamp-h1
 /ylwrap
-/docs/HcNet-core.1
-/docs/HcNet-core.1.in
+
+
 /src/Makefile
 /src/Makefile.in
 /lib/Makefile

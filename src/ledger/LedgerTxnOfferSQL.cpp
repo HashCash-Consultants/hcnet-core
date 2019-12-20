@@ -5,56 +5,29 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "util/Decoder.h"
+#include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdrpp/marshal.h"
 
 namespace HcNet
 {
 
-void
-processAsset(Asset& asset, AssetType assetType, std::string const& issuerStr,
-             soci::indicator const& issuerIndicator,
-             std::string const& assetCode,
-             soci::indicator const& assetCodeIndicator)
-{
-    asset.type(assetType);
-    if (assetType != ASSET_TYPE_NATIVE)
-    {
-        if ((assetCodeIndicator != soci::i_ok) ||
-            (issuerIndicator != soci::i_ok))
-        {
-            throw std::runtime_error("bad database state");
-        }
-
-        if (assetType == ASSET_TYPE_CREDIT_ALPHANUM12)
-        {
-            asset.alphaNum12().issuer =
-                KeyUtils::fromStrKey<PublicKey>(issuerStr);
-            strToAssetCode(asset.alphaNum12().assetCode, assetCode);
-        }
-        else if (assetType == ASSET_TYPE_CREDIT_ALPHANUM4)
-        {
-            asset.alphaNum4().issuer =
-                KeyUtils::fromStrKey<PublicKey>(issuerStr);
-            strToAssetCode(asset.alphaNum4().assetCode, assetCode);
-        }
-        else
-        {
-            throw std::runtime_error("bad database state");
-        }
-    }
-}
-
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
 {
-    uint64_t offerID = key.offer().offerID;
+    int64_t offerID = key.offer().offerID;
+    if (offerID < 0)
+    {
+        return nullptr;
+    }
+
     std::string actIDStrKey = KeyUtils::toStrKey(key.offer().sellerID);
 
-    std::string sql = "SELECT sellerid, offerid, "
-                      "sellingassettype, sellingassetcode, sellingissuer, "
-                      "buyingassettype, buyingassetcode, buyingissuer, "
+    std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified "
                       "FROM offers "
                       "WHERE sellerid= :id AND offerid= :offerid";
@@ -69,17 +42,14 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
         offers = loadOffers(prep);
     }
 
-    return offers.size() == 0
-               ? nullptr
-               : std::make_shared<LedgerEntry const>(offers.front());
+    return offers.empty() ? nullptr
+                          : std::make_shared<LedgerEntry const>(offers.front());
 }
 
 std::vector<LedgerEntry>
 LedgerTxnRoot::Impl::loadAllOffers() const
 {
-    std::string sql = "SELECT sellerid, offerid, "
-                      "sellingassettype, sellingassetcode, sellingissuer, "
-                      "buyingassettype, buyingassetcode, buyingissuer, "
+    std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified "
                       "FROM offers";
     auto prep = mDatabase.getPreparedStatement(sql);
@@ -97,61 +67,14 @@ LedgerTxnRoot::Impl::loadBestOffers(std::list<LedgerEntry>& offers,
                                     Asset const& buying, Asset const& selling,
                                     size_t numOffers, size_t offset) const
 {
-    std::string sql = "SELECT sellerid, offerid, "
-                      "sellingassettype, sellingassetcode, sellingissuer, "
-                      "buyingassettype, buyingassetcode, buyingissuer, "
+    std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified "
-                      "FROM offers ";
+                      "FROM offers "
+                      "WHERE sellingasset = :v1 AND buyingasset = :v2";
 
-    std::string sellingAssetCode, sellingIssuerStrKey;
-    if (selling.type() == ASSET_TYPE_NATIVE)
-    {
-        sql += " WHERE sellingassettype = 0 AND sellingissuer IS NULL";
-    }
-    else
-    {
-        if (selling.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-        {
-            assetCodeToStr(selling.alphaNum4().assetCode, sellingAssetCode);
-            sellingIssuerStrKey =
-                KeyUtils::toStrKey(selling.alphaNum4().issuer);
-        }
-        else if (selling.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-        {
-            assetCodeToStr(selling.alphaNum12().assetCode, sellingAssetCode);
-            sellingIssuerStrKey =
-                KeyUtils::toStrKey(selling.alphaNum12().issuer);
-        }
-        else
-        {
-            throw std::runtime_error("unknown asset type");
-        }
-        sql += " WHERE sellingassetcode = :sac AND sellingissuer = :si";
-    }
-
-    std::string buyingAssetCode, buyingIssuerStrKey;
-    if (buying.type() == ASSET_TYPE_NATIVE)
-    {
-        sql += " AND buyingassettype = 0 AND buyingissuer IS NULL";
-    }
-    else
-    {
-        if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-        {
-            assetCodeToStr(buying.alphaNum4().assetCode, buyingAssetCode);
-            buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum4().issuer);
-        }
-        else if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-        {
-            assetCodeToStr(buying.alphaNum12().assetCode, buyingAssetCode);
-            buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum12().issuer);
-        }
-        else
-        {
-            throw std::runtime_error("unknown asset type");
-        }
-        sql += " AND buyingassetcode = :bac AND buyingissuer = :bi";
-    }
+    std::string buyingAsset, sellingAsset;
+    buyingAsset = decoder::encode_b64(xdr::xdr_to_opaque(buying));
+    sellingAsset = decoder::encode_b64(xdr::xdr_to_opaque(selling));
 
     // price is an approximation of the actual n/d (truncated math, 15 digits)
     // ordering by offerid gives precendence to older offers for fairness
@@ -159,18 +82,10 @@ LedgerTxnRoot::Impl::loadBestOffers(std::list<LedgerEntry>& offers,
 
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
-    if (selling.type() != ASSET_TYPE_NATIVE)
-    {
-        st.exchange(soci::use(sellingAssetCode, "sac"));
-        st.exchange(soci::use(sellingIssuerStrKey, "si"));
-    }
-    if (buying.type() != ASSET_TYPE_NATIVE)
-    {
-        st.exchange(soci::use(buyingAssetCode, "bac"));
-        st.exchange(soci::use(buyingIssuerStrKey, "bi"));
-    }
-    st.exchange(soci::use(numOffers, "n"));
-    st.exchange(soci::use(offset, "o"));
+    st.exchange(soci::use(sellingAsset));
+    st.exchange(soci::use(buyingAsset));
+    st.exchange(soci::use(numOffers));
+    st.exchange(soci::use(offset));
 
     {
         auto timer = mDatabase.getSelectTimer("offer");
@@ -207,45 +122,30 @@ isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
 
 // Note: This function is currently only used in AllowTrustOpFrame, which means
 // the asset parameter will never satisfy asset.type() == ASSET_TYPE_NATIVE. As
-// a consequence, I have not implemented that possibility so this function
-// throws in that case.
+// a consequence, this function throws in that case.
 std::vector<LedgerEntry>
 LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
                                                  Asset const& asset) const
 {
-    std::string sql = "SELECT sellerid, offerid, "
-                      "sellingassettype, sellingassetcode, sellingissuer, "
-                      "buyingassettype, buyingassetcode, buyingissuer, "
+    std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified "
-                      "FROM offers ";
-    sql += " WHERE sellerid = :acc"
-           " AND ((sellingassetcode = :code AND sellingissuer = :iss)"
-           " OR   (buyingassetcode = :code AND buyingissuer = :iss))";
+                      "FROM offers WHERE sellerid = :v1 AND "
+                      "(sellingasset = :v2 OR buyingasset = :v3)";
+    // Note: v2 == v3 but positional parameters are faster
 
     std::string accountStr = KeyUtils::toStrKey(accountID);
 
-    std::string assetCode;
-    std::string assetIssuer;
-    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-        assetIssuer = KeyUtils::toStrKey(asset.alphaNum4().issuer);
-    }
-    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        assetCodeToStr(asset.alphaNum12().assetCode, assetCode);
-        assetIssuer = KeyUtils::toStrKey(asset.alphaNum12().issuer);
-    }
-    else
+    if (asset.type() == ASSET_TYPE_NATIVE)
     {
         throw std::runtime_error("Invalid asset type");
     }
+    std::string assetStr = decoder::encode_b64(xdr::xdr_to_opaque(asset));
 
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
-    st.exchange(soci::use(accountStr, "acc"));
-    st.exchange(soci::use(assetCode, "code"));
-    st.exchange(soci::use(assetIssuer, "iss"));
+    st.exchange(soci::use(accountStr));
+    st.exchange(soci::use(assetStr));
+    st.exchange(soci::use(assetStr));
 
     std::vector<LedgerEntry> offers;
     {
@@ -255,53 +155,14 @@ LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
     return offers;
 }
 
-std::vector<LedgerEntry>
-LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
+static Asset
+processAsset(std::string const& asset)
 {
-    std::vector<LedgerEntry> offers;
-
-    std::string actIDStrKey;
-    unsigned int sellingAssetType, buyingAssetType;
-    std::string sellingAssetCode, buyingAssetCode, sellingIssuerStrKey,
-        buyingIssuerStrKey;
-    soci::indicator sellingAssetCodeIndicator, buyingAssetCodeIndicator,
-        sellingIssuerIndicator, buyingIssuerIndicator;
-
-    LedgerEntry le;
-    le.data.type(OFFER);
-    OfferEntry& oe = le.data.offer();
-
-    auto& st = prep.statement();
-    st.exchange(soci::into(actIDStrKey));
-    st.exchange(soci::into(oe.offerID));
-    st.exchange(soci::into(sellingAssetType));
-    st.exchange(soci::into(sellingAssetCode, sellingAssetCodeIndicator));
-    st.exchange(soci::into(sellingIssuerStrKey, sellingIssuerIndicator));
-    st.exchange(soci::into(buyingAssetType));
-    st.exchange(soci::into(buyingAssetCode, buyingAssetCodeIndicator));
-    st.exchange(soci::into(buyingIssuerStrKey, buyingIssuerIndicator));
-    st.exchange(soci::into(oe.amount));
-    st.exchange(soci::into(oe.price.n));
-    st.exchange(soci::into(oe.price.d));
-    st.exchange(soci::into(oe.flags));
-    st.exchange(soci::into(le.lastModifiedLedgerSeq));
-    st.define_and_bind();
-    st.execute(true);
-    while (st.got_data())
-    {
-        oe.sellerID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
-        processAsset(oe.selling, (AssetType)sellingAssetType,
-                     sellingIssuerStrKey, sellingIssuerIndicator,
-                     sellingAssetCode, sellingAssetCodeIndicator);
-        processAsset(oe.buying, (AssetType)buyingAssetType, buyingIssuerStrKey,
-                     buyingIssuerIndicator, buyingAssetCode,
-                     buyingAssetCodeIndicator);
-
-        offers.emplace_back(le);
-        st.fetch();
-    }
-
-    return offers;
+    Asset res;
+    std::vector<uint8_t> assetOpaque;
+    decoder::decode_b64(asset, assetOpaque);
+    xdr::xdr_from_opaque(assetOpaque, res);
+    return res;
 }
 
 std::list<LedgerEntry>::const_iterator
@@ -309,11 +170,7 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
                                 std::list<LedgerEntry>& offers) const
 {
     std::string actIDStrKey;
-    unsigned int sellingAssetType, buyingAssetType;
-    std::string sellingAssetCode, buyingAssetCode, sellingIssuerStrKey,
-        buyingIssuerStrKey;
-    soci::indicator sellingAssetCodeIndicator, buyingAssetCodeIndicator,
-        sellingIssuerIndicator, buyingIssuerIndicator;
+    std::string sellingAsset, buyingAsset;
 
     LedgerEntry le;
     le.data.type(OFFER);
@@ -322,12 +179,8 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
     auto& st = prep.statement();
     st.exchange(soci::into(actIDStrKey));
     st.exchange(soci::into(oe.offerID));
-    st.exchange(soci::into(sellingAssetType));
-    st.exchange(soci::into(sellingAssetCode, sellingAssetCodeIndicator));
-    st.exchange(soci::into(sellingIssuerStrKey, sellingIssuerIndicator));
-    st.exchange(soci::into(buyingAssetType));
-    st.exchange(soci::into(buyingAssetCode, buyingAssetCodeIndicator));
-    st.exchange(soci::into(buyingIssuerStrKey, buyingIssuerIndicator));
+    st.exchange(soci::into(sellingAsset));
+    st.exchange(soci::into(buyingAsset));
     st.exchange(soci::into(oe.amount));
     st.exchange(soci::into(oe.price.n));
     st.exchange(soci::into(oe.price.d));
@@ -340,12 +193,8 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
     while (st.got_data())
     {
         oe.sellerID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
-        processAsset(oe.selling, (AssetType)sellingAssetType,
-                     sellingIssuerStrKey, sellingIssuerIndicator,
-                     sellingAssetCode, sellingAssetCodeIndicator);
-        processAsset(oe.buying, (AssetType)buyingAssetType, buyingIssuerStrKey,
-                     buyingIssuerIndicator, buyingAssetCode,
-                     buyingAssetCodeIndicator);
+        oe.selling = processAsset(sellingAsset);
+        oe.buying = processAsset(buyingAsset);
 
         if (iterNext == offers.cend())
         {
@@ -361,117 +210,335 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
     return iterNext;
 }
 
-void
-LedgerTxnRoot::Impl::insertOrUpdateOffer(LedgerEntry const& entry,
-                                         bool isInsert)
+std::vector<LedgerEntry>
+LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
 {
-    auto const& offer = entry.data.offer();
-    std::string actIDStrKey = KeyUtils::toStrKey(offer.sellerID);
+    std::vector<LedgerEntry> offers;
 
-    unsigned int sellingType = offer.selling.type();
-    unsigned int buyingType = offer.buying.type();
-    std::string sellingIssuerStrKey, buyingIssuerStrKey;
-    std::string sellingAssetCode, buyingAssetCode;
-    soci::indicator selling_ind = soci::i_null, buying_ind = soci::i_null;
-    double price = double(offer.price.n) / double(offer.price.d);
+    std::string actIDStrKey;
+    std::string sellingAsset, buyingAsset;
 
-    if (sellingType == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        sellingIssuerStrKey =
-            KeyUtils::toStrKey(offer.selling.alphaNum4().issuer);
-        assetCodeToStr(offer.selling.alphaNum4().assetCode, sellingAssetCode);
-        selling_ind = soci::i_ok;
-    }
-    else if (sellingType == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        sellingIssuerStrKey =
-            KeyUtils::toStrKey(offer.selling.alphaNum12().issuer);
-        assetCodeToStr(offer.selling.alphaNum12().assetCode, sellingAssetCode);
-        selling_ind = soci::i_ok;
-    }
+    LedgerEntry le;
+    le.data.type(OFFER);
+    OfferEntry& oe = le.data.offer();
 
-    if (buyingType == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        buyingIssuerStrKey =
-            KeyUtils::toStrKey(offer.buying.alphaNum4().issuer);
-        assetCodeToStr(offer.buying.alphaNum4().assetCode, buyingAssetCode);
-        buying_ind = soci::i_ok;
-    }
-    else if (buyingType == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        buyingIssuerStrKey =
-            KeyUtils::toStrKey(offer.buying.alphaNum12().issuer);
-        assetCodeToStr(offer.buying.alphaNum12().assetCode, buyingAssetCode);
-        buying_ind = soci::i_ok;
-    }
-
-    std::string sql;
-    if (isInsert)
-    {
-        sql = "INSERT INTO offers (sellerid,offerid,"
-              "sellingassettype,sellingassetcode,sellingissuer,"
-              "buyingassettype,buyingassetcode,buyingissuer,"
-              "amount,pricen,priced,price,flags,lastmodified) VALUES "
-              "(:sid,:oid,:sat,:sac,:si,:bat,:bac,:bi,:a,:pn,:pd,:p,:f,:l)";
-    }
-    else
-    {
-        sql = "UPDATE offers SET sellingassettype=:sat,"
-              "sellingassetcode=:sac,sellingissuer=:si,"
-              "buyingassettype=:bat,buyingassetcode=:bac,buyingissuer=:bi,"
-              "amount=:a,pricen=:pn,priced=:pd,price=:p,flags=:f,"
-              "lastmodified=:l WHERE offerid=:oid";
-    }
-
-    auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
-    if (isInsert)
-    {
-        st.exchange(soci::use(actIDStrKey, "sid"));
-    }
-    st.exchange(soci::use(offer.offerID, "oid"));
-    st.exchange(soci::use(sellingType, "sat"));
-    st.exchange(soci::use(sellingAssetCode, selling_ind, "sac"));
-    st.exchange(soci::use(sellingIssuerStrKey, selling_ind, "si"));
-    st.exchange(soci::use(buyingType, "bat"));
-    st.exchange(soci::use(buyingAssetCode, buying_ind, "bac"));
-    st.exchange(soci::use(buyingIssuerStrKey, buying_ind, "bi"));
-    st.exchange(soci::use(offer.amount, "a"));
-    st.exchange(soci::use(offer.price.n, "pn"));
-    st.exchange(soci::use(offer.price.d, "pd"));
-    st.exchange(soci::use(price, "p"));
-    st.exchange(soci::use(offer.flags, "f"));
-    st.exchange(soci::use(entry.lastModifiedLedgerSeq, "l"));
+    st.exchange(soci::into(actIDStrKey));
+    st.exchange(soci::into(oe.offerID));
+    st.exchange(soci::into(sellingAsset));
+    st.exchange(soci::into(buyingAsset));
+    st.exchange(soci::into(oe.amount));
+    st.exchange(soci::into(oe.price.n));
+    st.exchange(soci::into(oe.price.d));
+    st.exchange(soci::into(oe.flags));
+    st.exchange(soci::into(le.lastModifiedLedgerSeq));
     st.define_and_bind();
+    st.execute(true);
+
+    while (st.got_data())
     {
-        auto timer = isInsert ? mDatabase.getInsertTimer("offer")
-                              : mDatabase.getUpdateTimer("offer");
-        st.execute(true);
+        oe.sellerID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
+        oe.selling = processAsset(sellingAsset);
+        oe.buying = processAsset(buyingAsset);
+
+        offers.emplace_back(le);
+        st.fetch();
     }
-    if (st.get_affected_rows() != 1)
+
+    return offers;
+}
+
+class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
+{
+    Database& mDB;
+    std::vector<std::string> mSellerIDs;
+    std::vector<int64_t> mOfferIDs;
+    std::vector<std::string> mSellingAssets;
+    std::vector<std::string> mBuyingAssets;
+    std::vector<int64_t> mAmounts;
+    std::vector<int32_t> mPriceNs;
+    std::vector<int32_t> mPriceDs;
+    std::vector<double> mPrices;
+    std::vector<int32_t> mFlags;
+    std::vector<int32_t> mLastModifieds;
+
+    void
+    accumulateEntry(LedgerEntry const& entry)
     {
-        throw std::runtime_error("could not update SQL");
+        assert(entry.data.type() == OFFER);
+        auto const& offer = entry.data.offer();
+
+        mSellerIDs.emplace_back(KeyUtils::toStrKey(offer.sellerID));
+        mOfferIDs.emplace_back(offer.offerID);
+
+        mSellingAssets.emplace_back(
+            decoder::encode_b64(xdr::xdr_to_opaque(offer.selling)));
+        mBuyingAssets.emplace_back(
+            decoder::encode_b64(xdr::xdr_to_opaque(offer.buying)));
+
+        mAmounts.emplace_back(offer.amount);
+        mPriceNs.emplace_back(offer.price.n);
+        mPriceDs.emplace_back(offer.price.d);
+        double price = double(offer.price.n) / double(offer.price.d);
+        mPrices.emplace_back(price);
+
+        mFlags.emplace_back(unsignedToSigned(offer.flags));
+        mLastModifieds.emplace_back(
+            unsignedToSigned(entry.lastModifiedLedgerSeq));
     }
+
+  public:
+    BulkUpsertOffersOperation(Database& DB,
+                              std::vector<LedgerEntry> const& entries)
+        : mDB(DB)
+    {
+        mSellerIDs.reserve(entries.size());
+        mOfferIDs.reserve(entries.size());
+        mSellingAssets.reserve(entries.size());
+        mBuyingAssets.reserve(entries.size());
+        mAmounts.reserve(entries.size());
+        mPriceNs.reserve(entries.size());
+        mPriceDs.reserve(entries.size());
+        mPrices.reserve(entries.size());
+        mFlags.reserve(entries.size());
+        mLastModifieds.reserve(entries.size());
+
+        for (auto const& e : entries)
+        {
+            accumulateEntry(e);
+        }
+    }
+
+    BulkUpsertOffersOperation(Database& DB,
+                              std::vector<EntryIterator> const& entries)
+        : mDB(DB)
+    {
+        mSellerIDs.reserve(entries.size());
+        mOfferIDs.reserve(entries.size());
+        mSellingAssets.reserve(entries.size());
+        mBuyingAssets.reserve(entries.size());
+        mAmounts.reserve(entries.size());
+        mPriceNs.reserve(entries.size());
+        mPriceDs.reserve(entries.size());
+        mPrices.reserve(entries.size());
+        mFlags.reserve(entries.size());
+        mLastModifieds.reserve(entries.size());
+
+        for (auto const& e : entries)
+        {
+            assert(e.entryExists());
+            accumulateEntry(e.entry());
+        }
+    }
+
+    void
+    doSociGenericOperation()
+    {
+        std::string sql = "INSERT INTO offers ( "
+                          "sellerid, offerid, sellingasset, buyingasset, "
+                          "amount, pricen, priced, price, flags, lastmodified "
+                          ") VALUES ( "
+                          ":v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10 "
+                          ") ON CONFLICT (offerid) DO UPDATE SET "
+                          "sellerid = excluded.sellerid, "
+                          "sellingasset = excluded.sellingasset, "
+                          "buyingasset = excluded.buyingasset, "
+                          "amount = excluded.amount, "
+                          "pricen = excluded.pricen, "
+                          "priced = excluded.priced, "
+                          "price = excluded.price, "
+                          "flags = excluded.flags, "
+                          "lastmodified = excluded.lastmodified ";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(mSellerIDs));
+        st.exchange(soci::use(mOfferIDs));
+        st.exchange(soci::use(mSellingAssets));
+        st.exchange(soci::use(mBuyingAssets));
+        st.exchange(soci::use(mAmounts));
+        st.exchange(soci::use(mPriceNs));
+        st.exchange(soci::use(mPriceDs));
+        st.exchange(soci::use(mPrices));
+        st.exchange(soci::use(mFlags));
+        st.exchange(soci::use(mLastModifieds));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getUpsertTimer("offer");
+            st.execute(true);
+        }
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size())
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+
+    void
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        doSociGenericOperation();
+    }
+
+#ifdef USE_POSTGRES
+    void
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+
+        std::string strSellerIDs, strOfferIDs, strSellingAssets,
+            strBuyingAssets, strAmounts, strPriceNs, strPriceDs, strPrices,
+            strFlags, strLastModifieds;
+
+        PGconn* conn = pg->conn_;
+        marshalToPGArray(conn, strSellerIDs, mSellerIDs);
+        marshalToPGArray(conn, strOfferIDs, mOfferIDs);
+
+        marshalToPGArray(conn, strSellingAssets, mSellingAssets);
+        marshalToPGArray(conn, strBuyingAssets, mBuyingAssets);
+
+        marshalToPGArray(conn, strAmounts, mAmounts);
+        marshalToPGArray(conn, strPriceNs, mPriceNs);
+        marshalToPGArray(conn, strPriceDs, mPriceDs);
+        marshalToPGArray(conn, strPrices, mPrices);
+        marshalToPGArray(conn, strFlags, mFlags);
+        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
+
+        std::string sql = "WITH r AS (SELECT "
+                          "unnest(:v1::TEXT[]), "
+                          "unnest(:v2::BIGINT[]), "
+                          "unnest(:v3::TEXT[]), "
+                          "unnest(:v4::TEXT[]), "
+                          "unnest(:v5::BIGINT[]), "
+                          "unnest(:v6::INT[]), "
+                          "unnest(:v7::INT[]), "
+                          "unnest(:v8::DOUBLE PRECISION[]), "
+                          "unnest(:v9::INT[]), "
+                          "unnest(:v10::INT[]) "
+                          ")"
+                          "INSERT INTO offers ( "
+                          "sellerid, offerid, sellingasset, buyingasset, "
+                          "amount, pricen, priced, price, flags, lastmodified "
+                          ") SELECT * from r "
+                          "ON CONFLICT (offerid) DO UPDATE SET "
+                          "sellerid = excluded.sellerid, "
+                          "sellingasset = excluded.sellingasset, "
+                          "buyingasset = excluded.buyingasset, "
+                          "amount = excluded.amount, "
+                          "pricen = excluded.pricen, "
+                          "priced = excluded.priced, "
+                          "price = excluded.price, "
+                          "flags = excluded.flags, "
+                          "lastmodified = excluded.lastmodified ";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(strSellerIDs));
+        st.exchange(soci::use(strOfferIDs));
+        st.exchange(soci::use(strSellingAssets));
+        st.exchange(soci::use(strBuyingAssets));
+        st.exchange(soci::use(strAmounts));
+        st.exchange(soci::use(strPriceNs));
+        st.exchange(soci::use(strPriceDs));
+        st.exchange(soci::use(strPrices));
+        st.exchange(soci::use(strFlags));
+        st.exchange(soci::use(strLastModifieds));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getUpsertTimer("offer");
+            st.execute(true);
+        }
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size())
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+#endif
+};
+
+class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
+{
+    Database& mDB;
+    LedgerTxnConsistency mCons;
+    std::vector<int64_t> mOfferIDs;
+
+  public:
+    BulkDeleteOffersOperation(Database& DB, LedgerTxnConsistency cons,
+                              std::vector<EntryIterator> const& entries)
+        : mDB(DB), mCons(cons)
+    {
+        for (auto const& e : entries)
+        {
+            assert(!e.entryExists());
+            assert(e.key().type() == OFFER);
+            auto const& offer = e.key().offer();
+            mOfferIDs.emplace_back(offer.offerID);
+        }
+    }
+
+    void
+    doSociGenericOperation()
+    {
+        std::string sql = "DELETE FROM offers WHERE offerid = :id";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(mOfferIDs));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getDeleteTimer("offer");
+            st.execute(true);
+        }
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size() &&
+            mCons == LedgerTxnConsistency::EXACT)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+
+    void
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        doSociGenericOperation();
+    }
+
+#ifdef USE_POSTGRES
+    void
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        PGconn* conn = pg->conn_;
+        std::string strOfferIDs;
+        marshalToPGArray(conn, strOfferIDs, mOfferIDs);
+        std::string sql = "WITH r AS (SELECT "
+                          "unnest(:ids::BIGINT[]) "
+                          ") "
+                          "DELETE FROM offers WHERE "
+                          "offerid IN (SELECT * FROM r)";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(strOfferIDs));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getDeleteTimer("offer");
+            st.execute(true);
+        }
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size() &&
+            mCons == LedgerTxnConsistency::EXACT)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+#endif
+};
+
+void
+LedgerTxnRoot::Impl::bulkUpsertOffers(std::vector<EntryIterator> const& entries)
+{
+    BulkUpsertOffersOperation op(mDatabase, entries);
+    mDatabase.doDatabaseTypeSpecificOperation(op);
 }
 
 void
-LedgerTxnRoot::Impl::deleteOffer(LedgerKey const& key)
+LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
+                                      LedgerTxnConsistency cons)
 {
-    auto const& offer = key.offer();
-
-    auto prep =
-        mDatabase.getPreparedStatement("DELETE FROM offers WHERE offerid=:s");
-    auto& st = prep.statement();
-    st.exchange(soci::use(offer.offerID));
-    st.define_and_bind();
-    {
-        auto timer = mDatabase.getDeleteTimer("offer");
-        st.execute(true);
-    }
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
+    BulkDeleteOffersOperation op(mDatabase, cons, entries);
+    mDatabase.doDatabaseTypeSpecificOperation(op);
 }
 
 void
@@ -485,14 +552,10 @@ LedgerTxnRoot::Impl::dropOffers()
     mDatabase.getSession()
         << "CREATE TABLE offers"
            "("
-           "sellerid         VARCHAR(56)  NOT NULL,"
-           "offerid          BIGINT       NOT NULL CHECK (offerid >= 0),"
-           "sellingassettype INT          NOT NULL,"
-           "sellingassetcode VARCHAR(12),"
-           "sellingissuer    VARCHAR(56),"
-           "buyingassettype  INT          NOT NULL,"
-           "buyingassetcode  VARCHAR(12),"
-           "buyingissuer     VARCHAR(56),"
+           "sellerid         VARCHAR(56)      NOT NULL,"
+           "offerid          BIGINT           NOT NULL CHECK (offerid >= 0),"
+           "sellingasset     TEXT             NOT NULL,"
+           "buyingasset      TEXT             NOT NULL,"
            "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
            "pricen           INT              NOT NULL,"
            "priced           INT              NOT NULL,"
@@ -501,10 +564,146 @@ LedgerTxnRoot::Impl::dropOffers()
            "lastmodified     INT              NOT NULL,"
            "PRIMARY KEY      (offerid)"
            ");";
-    mDatabase.getSession()
-        << "CREATE INDEX sellingissuerindex ON offers (sellingissuer);";
-    mDatabase.getSession()
-        << "CREATE INDEX buyingissuerindex ON offers (buyingissuer);";
-    mDatabase.getSession() << "CREATE INDEX priceindex ON offers (price);";
+    mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
+                              "(sellingasset,buyingasset,price);";
+}
+
+class BulkLoadOffersOperation
+    : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
+{
+    Database& mDb;
+    std::vector<int64_t> mOfferIDs;
+    std::unordered_map<int64_t, AccountID> mSellerIDsByOfferID;
+
+    std::vector<LedgerEntry>
+    executeAndFetch(soci::statement& st)
+    {
+        std::string sellerID, sellingAsset, buyingAsset;
+        int64_t amount;
+        int64_t offerID;
+        uint32_t flags, lastModified;
+        Price price;
+
+        st.exchange(soci::into(sellerID));
+        st.exchange(soci::into(offerID));
+        st.exchange(soci::into(sellingAsset));
+        st.exchange(soci::into(buyingAsset));
+        st.exchange(soci::into(amount));
+        st.exchange(soci::into(price.n));
+        st.exchange(soci::into(price.d));
+        st.exchange(soci::into(flags));
+        st.exchange(soci::into(lastModified));
+        st.define_and_bind();
+        {
+            auto timer = mDb.getSelectTimer("offer");
+            st.execute(true);
+        }
+
+        std::vector<LedgerEntry> res;
+        while (st.got_data())
+        {
+            auto pubKey = KeyUtils::fromStrKey<PublicKey>(sellerID);
+
+            // Exclude offers where sellerID in LedgerKey doesn't match sellerID
+            // in LedgerEntry
+            if (mSellerIDsByOfferID[offerID] == pubKey)
+            {
+                res.emplace_back();
+                auto& le = res.back();
+                le.data.type(OFFER);
+                auto& oe = le.data.offer();
+
+                oe.sellerID = pubKey;
+                oe.offerID = offerID;
+
+                oe.selling = processAsset(sellingAsset);
+                oe.buying = processAsset(buyingAsset);
+
+                oe.amount = amount;
+                oe.price = price;
+                oe.flags = flags;
+                le.lastModifiedLedgerSeq = lastModified;
+            }
+
+            st.fetch();
+        }
+        return res;
+    }
+
+  public:
+    BulkLoadOffersOperation(Database& db,
+                            std::unordered_set<LedgerKey> const& keys)
+        : mDb(db)
+    {
+        mOfferIDs.reserve(keys.size());
+        for (auto const& k : keys)
+        {
+            assert(k.type() == OFFER);
+            if (k.offer().offerID >= 0)
+            {
+                mOfferIDs.emplace_back(k.offer().offerID);
+                mSellerIDsByOfferID[mOfferIDs.back()] = k.offer().sellerID;
+            }
+        }
+    }
+
+    virtual std::vector<LedgerEntry>
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        std::string sql =
+            "SELECT sellerid, offerid, sellingasset, buyingasset, "
+            "amount, pricen, priced, flags, lastmodified "
+            "FROM offers WHERE offerid IN carray(?, ?, 'int64')";
+
+        auto prep = mDb.getPreparedStatement(sql);
+        auto be = prep.statement().get_backend();
+        if (be == nullptr)
+        {
+            throw std::runtime_error("no sql backend");
+        }
+        auto sqliteStatement =
+            dynamic_cast<soci::sqlite3_statement_backend*>(be);
+        auto st = sqliteStatement->stmt_;
+
+        sqlite3_reset(st);
+        sqlite3_bind_pointer(st, 1, (void*)mOfferIDs.data(), "carray", 0);
+        sqlite3_bind_int(st, 2, static_cast<int>(mOfferIDs.size()));
+        return executeAndFetch(prep.statement());
+    }
+
+#ifdef USE_POSTGRES
+    std::vector<LedgerEntry>
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        std::string strOfferIDs;
+        marshalToPGArray(pg->conn_, strOfferIDs, mOfferIDs);
+
+        std::string sql =
+            "WITH r AS (SELECT unnest(:v1::BIGINT[])) "
+            "SELECT sellerid, offerid, sellingasset, buyingasset, "
+            "amount, pricen, priced, flags, lastmodified "
+            "FROM offers WHERE offerid IN (SELECT * FROM r)";
+        auto prep = mDb.getPreparedStatement(sql);
+        auto& st = prep.statement();
+        st.exchange(soci::use(strOfferIDs));
+        return executeAndFetch(st);
+    }
+#endif
+};
+
+std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+LedgerTxnRoot::Impl::bulkLoadOffers(
+    std::unordered_set<LedgerKey> const& keys) const
+{
+    if (!keys.empty())
+    {
+        BulkLoadOffersOperation op(mDatabase, keys);
+        return populateLoadedEntries(
+            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+    }
+    else
+    {
+        return {};
+    }
 }
 }

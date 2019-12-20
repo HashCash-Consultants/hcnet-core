@@ -94,7 +94,7 @@ else
     echo "PostgreSQL enabled for tests using existing database cluster"
 fi
 if [ "$ALL_VERSIONS" != "" ]; then
-    ./HcNet-core -ll fatal --test --base-instance $BASE_INSTANCE --all-versions -a -r simple "$TESTS" 2> /dev/null
-else
-    ./HcNet-core -ll fatal --test --base-instance $BASE_INSTANCE -a -r simple "$TESTS" 2> /dev/null
+    ./HcNet-core test --ll fatal --base-instance $BASE_INSTANCE --all-versions -a -r simple "$TESTS" 2> /dev/null
+else                                 
+    ./HcNet-core test --ll fatal --base-instance $BASE_INSTANCE -a -r simple "$TESTS" 2> /dev/null
 fi

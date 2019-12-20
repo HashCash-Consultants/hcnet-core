@@ -8,21 +8,20 @@
 #include "ledger/LedgerManager.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "util/Logging.h"
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 
 namespace HcNet
 {
-
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
-    Application& app, WorkParent& parent, std::string uniqueName,
-    HistoryArchiveState& state, uint32_t seq,
-    std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
-    : Work(app, parent, std::move(uniqueName), maxRetries)
-    , mState(state)
+    Application& app, uint32_t seq, std::shared_ptr<HistoryArchive> archive,
+    size_t maxRetries)
+    : Work(app, "get-archive-state", maxRetries)
     , mSeq(seq)
     , mArchive(archive)
+    , mRetries(maxRetries)
     , mLocalFilename(
           archive ? HistoryArchiveState::localName(app, archive->getName())
                   : app.getHistoryManager().localFilename(
@@ -32,64 +31,56 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
 {
 }
 
-GetHistoryArchiveStateWork::~GetHistoryArchiveStateWork()
+BasicWork::State
+GetHistoryArchiveStateWork::doWork()
 {
-    clearChildren();
-}
-
-std::string
-GetHistoryArchiveStateWork::getStatus() const
-{
-    if (getState() == WORK_FAILURE_RETRY)
+    if (mGetRemoteFile)
     {
-        auto eta = getRetryETA();
-        return fmt::format("Awaiting checkpoint (ETA: {:d} seconds)", eta);
+        auto state = mGetRemoteFile->getState();
+        if (state == State::WORK_SUCCESS)
+        {
+            try
+            {
+                mState.load(mLocalFilename);
+            }
+            catch (std::runtime_error& e)
+            {
+                CLOG(ERROR, "History")
+                    << "Error loading history state: " << e.what();
+                CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+                CLOG(ERROR, "History") << "OR";
+                CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
+                CLOG(ERROR, "History") << "OR";
+                CLOG(ERROR, "History") << UPGRADE_HcNet_CORE;
+                return State::WORK_FAILURE;
+            }
+        }
+        return state;
     }
-    return Work::getStatus();
+
+    else
+    {
+        auto name = mSeq == 0 ? HistoryArchiveState::wellKnownRemoteName()
+                              : HistoryArchiveState::remoteName(mSeq);
+        CLOG(INFO, "History") << "Downloading history archive state: " << name;
+        mGetRemoteFile = addWork<GetRemoteFileWork>(name, mLocalFilename,
+                                                    mArchive, mRetries);
+        return State::WORK_RUNNING;
+    }
 }
 
 void
-GetHistoryArchiveStateWork::onReset()
+GetHistoryArchiveStateWork::doReset()
 {
-    clearChildren();
+    mGetRemoteFile.reset();
     std::remove(mLocalFilename.c_str());
-    addWork<GetRemoteFileWork>(mSeq == 0
-                                   ? HistoryArchiveState::wellKnownRemoteName()
-                                   : HistoryArchiveState::remoteName(mSeq),
-                               mLocalFilename, mArchive, getMaxRetries());
+    mState = {};
 }
 
 void
-GetHistoryArchiveStateWork::onRun()
-{
-    try
-    {
-        mState.load(mLocalFilename);
-        scheduleSuccess();
-    }
-    catch (std::runtime_error& e)
-    {
-        CLOG(ERROR, "History") << "error loading history state: " << e.what();
-        scheduleFailure();
-    }
-}
-
-Work::State
 GetHistoryArchiveStateWork::onSuccess()
 {
     mGetHistoryArchiveStateSuccess.Mark();
-    return Work::onSuccess();
-}
-
-void
-GetHistoryArchiveStateWork::onFailureRetry()
-{
-    Work::onFailureRetry();
-}
-
-void
-GetHistoryArchiveStateWork::onFailureRaise()
-{
-    Work::onFailureRaise();
+    Work::onSuccess();
 }
 }
