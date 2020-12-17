@@ -29,26 +29,24 @@ Alternatively, if you want to just depend on stock 16.04, you will have to build
 
 After installing packages, head to [building with clang and libc++](#building-with-clang-and-libc).
 
-# install clang-8 toolchain
+#### install clang-8 toolchain
 sudo apt-get install clang-8
 
-Adding the test toolchain
-# NOTE: newer version of the compilers are not
-#    provided by stock distributions
-#    and are provided by the /test toolchain
+#### Adding the test toolchain
+NOTE: newer version of the compilers are not provided by stock distributions and are provided by the /test toolchain
 sudo apt-get install software-properties-common
 sudo add-apt-repository ppa:ubuntu-toolchain-r/test
 sudo apt-get update
 
 Installing packages
-# common packages
+#### common packages
 sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel
-# if using clang
+#### if using clang
 sudo apt-get install clang-5.0
-# clang with libstdc++
+#### clang with libstdc++
 sudo apt-get install gcc-6
-# if using g++ or building with libstdc++
-# sudo apt-get install gcc-6 g++-6 cpp-6
+if using g++ or building with libstdc++
+sudo apt-get install gcc-6 g++-6 cpp-6
 
 Basic Installation
 git clone https://github.com/HashCash-Consultants/HCNet-Core
@@ -61,7 +59,7 @@ Type make or make -j<N> (where <N> is the number of parallel builds, a number le
 Type make check to run tests.
 Type make install to install.
 
-# install libc++ headers
+## install libc++ headers
 sudo apt-get install libc++-8-dev libc++abi-8-dev
 Here are sample steps to achieve this:
 
