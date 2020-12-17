@@ -1,14 +1,14 @@
 #pragma once
 
-// Copyright 2015 HcNet Development Foundation and contributors. Licensed
+// Copyright 2015 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
 #include "overlay/Peer.h"
 #include "util/HashOfHash.h"
-#include "util/lrucache.hpp"
-#include "xdr/HcNet-types.h"
+#include "util/RandomEvictionCache.h"
+#include "xdr/Hcnet-types.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -16,7 +16,7 @@
 
 #include "util/Timer.h"
 
-namespace HcNet
+namespace hcnet
 {
 
 class Application;
@@ -42,7 +42,7 @@ class LoadManager
                      Application& app);
 
     // We track the costs incurred by each peer in a PeerCosts structure,
-    // and keep these in an LRU cache to avoid overfilling the LoadManager
+    // and keep these in a cache to avoid overfilling the LoadManager
     // should we have ongoing churn in low-cost peers.
     struct PeerCosts
     {
@@ -57,7 +57,7 @@ class LoadManager
     std::shared_ptr<PeerCosts> getPeerCosts(NodeID const& peer);
 
   private:
-    cache::lru_cache<NodeID, std::shared_ptr<PeerCosts>> mPeerCosts;
+    RandomEvictionCache<NodeID, std::shared_ptr<PeerCosts>> mPeerCosts;
 
   public:
     // Measure recent load on the system and, if the system appears

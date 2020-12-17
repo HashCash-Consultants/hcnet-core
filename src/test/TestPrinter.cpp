@@ -1,33 +1,36 @@
-// Copyright 2017 HcNet Development Foundation and contributors. Licensed
+// Copyright 2017 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestPrinter.h"
-#include "lib/util/format.h"
+#include "catchup/CatchupRange.h"
 #include "test/TestMarket.h"
+#include "util/XDRCereal.h"
+#include <fmt/format.h>
 
 namespace Catch
 {
 std::string
-StringMaker<HcNet::OfferState>::convert(HcNet::OfferState const& os)
+StringMaker<hcnet::OfferState>::convert(hcnet::OfferState const& os)
 {
     return fmt::format(
         "selling: {}, buying: {}, price: {}, amount: {}, type: {}",
-        xdr::xdr_to_string(os.selling), xdr::xdr_to_string(os.buying),
-        xdr::xdr_to_string(os.price), os.amount,
-        os.type == HcNet::OfferType::PASSIVE ? "passive" : "active");
+        xdr_to_string(os.selling), xdr_to_string(os.buying),
+        xdr_to_string(os.price), os.amount,
+        os.type == hcnet::OfferType::PASSIVE ? "passive" : "active");
 }
 
 std::string
-StringMaker<HcNet::CatchupRange>::convert(HcNet::CatchupRange const& cr)
+StringMaker<hcnet::CatchupRange>::convert(hcnet::CatchupRange const& cr)
 {
-    return fmt::format("[{}..{}], applyBuckets: {}", cr.mLedgers.mFirst,
-                       cr.getLast(), cr.getBucketApplyLedger());
+    return fmt::format("[{},{}), applyBuckets: {}", cr.getReplayFirst(),
+                       cr.getReplayLimit(),
+                       cr.applyBuckets() ? cr.getBucketApplyLedger() : 0);
 }
 
 std::string
-StringMaker<HcNet::historytestutils::CatchupPerformedWork>::convert(
-    HcNet::historytestutils::CatchupPerformedWork const& cm)
+StringMaker<hcnet::historytestutils::CatchupPerformedWork>::convert(
+    hcnet::historytestutils::CatchupPerformedWork const& cm)
 {
     return fmt::format("{}, {}, {}, {}, {}, {}, {}, {}",
                        cm.mHistoryArchiveStatesDownloaded,

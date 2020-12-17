@@ -1,18 +1,18 @@
 #pragma once
 
-// Copyright 2014 HcNet Development Foundation and contributors. Licensed
+// Copyright 2014 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/KeyUtils.h"
 #include "util/XDROperators.h"
-#include "xdr/HcNet-types.h"
+#include "xdr/Hcnet-types.h"
 
 #include <array>
 #include <functional>
 #include <ostream>
 
-namespace HcNet
+namespace hcnet
 {
 
 class ByteSlice;
@@ -90,6 +90,21 @@ class SecretKey
     {
         return (mKeyType == rh.mKeyType) && (mSecretKey == rh.mSecretKey);
     }
+
+    bool
+    operator<(SecretKey const& rh) const
+    {
+        if (mKeyType < rh.mKeyType)
+        {
+            return true;
+        }
+        if (mKeyType > rh.mKeyType)
+        {
+            return false;
+        }
+
+        return mSecretKey < rh.mSecretKey;
+    }
 };
 
 template <> struct KeyFunctions<PublicKey>
@@ -135,8 +150,8 @@ Hash random();
 
 namespace std
 {
-template <> struct hash<HcNet::PublicKey>
+template <> struct hash<hcnet::PublicKey>
 {
-    size_t operator()(HcNet::PublicKey const& x) const noexcept;
+    size_t operator()(hcnet::PublicKey const& x) const noexcept;
 };
 }

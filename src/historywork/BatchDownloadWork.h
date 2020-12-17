@@ -1,4 +1,4 @@
-// Copyright 2015 HcNet Development Foundation and contributors. Licensed
+// Copyright 2015 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
@@ -13,8 +13,10 @@ namespace medida
 class Meter;
 }
 
-namespace HcNet
+namespace hcnet
 {
+
+class HistoryArchive;
 
 class BatchDownloadWork : public BatchWork
 {
@@ -22,10 +24,12 @@ class BatchDownloadWork : public BatchWork
     uint32_t mNext;
     std::string const mFileType;
     TmpDir const& mDownloadDir;
+    std::shared_ptr<HistoryArchive> mArchive;
 
   public:
     BatchDownloadWork(Application& app, CheckpointRange range,
-                      std::string const& type, TmpDir const& downloadDir);
+                      std::string const& type, TmpDir const& downloadDir,
+                      std::shared_ptr<HistoryArchive> archive = nullptr);
     ~BatchDownloadWork() = default;
     std::string getStatus() const override;
 

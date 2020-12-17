@@ -1,11 +1,11 @@
 #pragma once
 
-// Copyright 2014 HcNet Development Foundation and contributors. Licensed
+// Copyright 2014 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/Peer.h"
-#include "overlay/HcNetXDR.h"
+#include "overlay/HcnetXDR.h"
 #include <map>
 
 /**
@@ -26,7 +26,7 @@ namespace medida
 class Counter;
 }
 
-namespace HcNet
+namespace hcnet
 {
 
 class Floodgate
@@ -37,14 +37,14 @@ class Floodgate
         typedef std::shared_ptr<FloodRecord> pointer;
 
         uint32_t mLedgerSeq;
-        HcNetMessage mMessage;
+        HcnetMessage mMessage;
         std::set<std::string> mPeersTold;
 
-        FloodRecord(HcNetMessage const& msg, uint32_t ledger,
+        FloodRecord(HcnetMessage const& msg, uint32_t ledger,
                     Peer::pointer peer);
     };
 
-    std::map<uint256, FloodRecord::pointer> mFloodMap;
+    std::map<Hash, FloodRecord::pointer> mFloodMap;
     Application& mApp;
     medida::Counter& mFloodMapSize;
     medida::Meter& mSendFromBroadcast;
@@ -55,13 +55,23 @@ class Floodgate
     // Floodgate will be cleared after every ledger close
     void clearBelow(uint32_t currentLedger);
     // returns true if this is a new record
-    bool addRecord(HcNetMessage const& msg, Peer::pointer fromPeer);
+    // fills msgID with msg's hash
+    bool addRecord(HcnetMessage const& msg, Peer::pointer fromPeer,
+                   Hash& msgID);
 
-    void broadcast(HcNetMessage const& msg, bool force);
+    void broadcast(HcnetMessage const& msg, bool force);
 
-    // returns the list of peers that sent us the item with hash `h`
-    std::set<Peer::pointer> getPeersKnows(Hash const& h);
+    // returns the list of peers that sent us the item with hash `msgID`
+    // NB: `msgID` is the hash of a `HcnetMessage`
+    std::set<Peer::pointer> getPeersKnows(Hash const& msgID);
+
+    // removes the record corresponding to `msgID`
+    // `msgID` corresponds to a `HcnetMessage`
+    void forgetRecord(Hash const& msgID);
 
     void shutdown();
+
+    void updateRecord(HcnetMessage const& oldMsg,
+                      HcnetMessage const& newMsg);
 };
 }

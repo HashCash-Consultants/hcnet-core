@@ -1,6 +1,6 @@
 #pragma once
 
-// Copyright 2014 HcNet Development Foundation and contributors. Licensed
+// Copyright 2014 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
@@ -14,11 +14,12 @@
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
-#include "overlay/HcNetXDR.h"
+#include "overlay/HcnetXDR.h"
+#include "overlay/SurveyManager.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
-#include "lib/util/lrucache.hpp"
+#include "util/RandomEvictionCache.h"
 
 #include <future>
 #include <set>
@@ -33,7 +34,7 @@ class Counter;
 /*
 Maintain the set of peers we are connected to
 */
-namespace HcNet
+namespace hcnet
 {
 
 class OverlayManagerImpl : public OverlayManager
@@ -83,9 +84,7 @@ class OverlayManagerImpl : public OverlayManager
     OverlayMetrics mOverlayMetrics;
 
     // NOTE: bool is used here as a placeholder, since no ValueType is needed.
-    cache::lru_cache<uint64_t, bool> mMessageCache;
-    uint32_t mCheckPerfLogLevelCounter;
-    el::Level mPerfLogLevel;
+    RandomEvictionCache<uint64_t, bool> mMessageCache;
 
     void tick();
     VirtualTimer mTimer;
@@ -95,13 +94,17 @@ class OverlayManagerImpl : public OverlayManager
 
     Floodgate mFloodGate;
 
+    std::shared_ptr<SurveyManager> mSurveyManager;
+
   public:
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
 
     void ledgerClosed(uint32_t lastClosedledgerSeq) override;
-    void recvFloodedMsg(HcNetMessage const& msg, Peer::pointer peer) override;
-    void broadcastMessage(HcNetMessage const& msg,
+    bool recvFloodedMsgID(HcnetMessage const& msg, Peer::pointer peer,
+                          Hash& msgID) override;
+    void forgetFloodedMsg(Hash const& msgID) override;
+    void broadcastMessage(HcnetMessage const& msg,
                           bool force = false) override;
     void connectTo(PeerBareAddress const& address) override;
 
@@ -128,6 +131,8 @@ class OverlayManagerImpl : public OverlayManager
     Peer::pointer getConnectedPeer(PeerBareAddress const& address) override;
 
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
+    std::vector<Peer::pointer> getRandomInboundAuthenticatedPeers() override;
+    std::vector<Peer::pointer> getRandomOutboundAuthenticatedPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
@@ -137,13 +142,18 @@ class OverlayManagerImpl : public OverlayManager
     LoadManager& getLoadManager() override;
     PeerManager& getPeerManager() override;
 
+    SurveyManager& getSurveyManager() override;
+
     void start() override;
     void shutdown() override;
 
     bool isShuttingDown() const override;
 
-    void
-    recordDuplicateMessageMetric(HcNetMessage const& HcNetMsg) override;
+    void recordMessageMetric(HcnetMessage const& hcnetMsg,
+                             Peer::pointer peer) override;
+
+    void updateFloodRecord(HcnetMessage const& oldMsg,
+                           HcnetMessage const& newMsg) override;
 
   private:
     struct ResolvedPeers
@@ -178,5 +188,9 @@ class OverlayManagerImpl : public OverlayManager
     bool isPossiblyPreferred(std::string const& ip);
 
     void updateSizeCounters();
+
+    void extractPeersFromMap(std::map<NodeID, Peer::pointer> const& peerMap,
+                             std::vector<Peer::pointer>& result);
+    void shufflePeerList(std::vector<Peer::pointer>& peerList);
 };
 }

@@ -1,16 +1,16 @@
 #pragma once
 
-#include "crypto/ECDH.h"
+#include "crypto/Curve25519.h"
 #include "overlay/Peer.h"
 #include "overlay/PeerSharedKeyId.h"
-#include "util/lrucache.hpp"
-#include "xdr/HcNet-types.h"
+#include "util/RandomEvictionCache.h"
+#include "xdr/Hcnet-types.h"
 
-// Copyright 2015 HcNet Development Foundation and contributors. Licensed
+// Copyright 2015 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-namespace HcNet
+namespace hcnet
 {
 class PeerAuth
 {
@@ -30,7 +30,7 @@ class PeerAuth
     Curve25519Public mECDHPublicKey;
     AuthCert mCert;
 
-    cache::lru_cache<PeerSharedKeyId, HmacSha256Key> mSharedKeyCache;
+    RandomEvictionCache<PeerSharedKeyId, HmacSha256Key> mSharedKeyCache;
 
     HmacSha256Key getSharedKey(Curve25519Public const& remotePublic,
                                Peer::PeerRole role);

@@ -1,18 +1,18 @@
 #pragma once
 
-// Copyright 2017 HcNet Development Foundation and contributors. Licensed
+// Copyright 2017 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "util/XDRStream.h"
-#include "xdr/HcNet-ledger.h"
+#include "xdr/Hcnet-ledger.h"
 
 #include <memory>
 #include <string>
 
-namespace HcNet
+namespace hcnet
 {
 
 class Bucket;
@@ -27,7 +27,7 @@ class BucketOutputIterator
     XDROutputFileStream mOut;
     BucketEntryIdCmp mCmp;
     std::unique_ptr<BucketEntry> mBuf;
-    std::unique_ptr<SHA256> mHasher;
+    SHA256 mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
     bool mKeepDeadEntries{true};
@@ -45,7 +45,7 @@ class BucketOutputIterator
     // (or forget to do), it's handled automatically.
     BucketOutputIterator(std::string const& tmpDir, bool keepDeadEntries,
                          BucketMetadata const& meta, MergeCounters& mc,
-                         bool doFsync);
+                         asio::io_context& ctx, bool doFsync);
 
     void put(BucketEntry const& e);
 

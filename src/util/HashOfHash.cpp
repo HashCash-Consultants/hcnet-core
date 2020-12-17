@@ -1,14 +1,14 @@
 #include "HashOfHash.h"
-#include "crypto/ByteSliceHasher.h"
+#include "crypto/ShortHash.h"
 
 namespace std
 {
 
 size_t
-hash<HcNet::uint256>::operator()(HcNet::uint256 const& x) const noexcept
+hash<hcnet::uint256>::operator()(hcnet::uint256 const& x) const noexcept
 {
     size_t res =
-        HcNet::shortHash::computeHash(HcNet::ByteSlice(x.data(), 8));
+        hcnet::shortHash::computeHash(hcnet::ByteSlice(x.data(), 8));
 
     return res;
 }

@@ -1,13 +1,13 @@
 #pragma once
 
-// Copyright 2015 HcNet Development Foundation and contributors. Licensed
+// Copyright 2015 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "cereal/cereal.hpp"
 #include <memory>
 
-namespace HcNet
+namespace hcnet
 {
 template <typename T> using optional = std::shared_ptr<T>;
 
@@ -30,7 +30,7 @@ namespace cereal
 {
 template <class Archive, class T>
 void
-save(Archive& ar, HcNet::optional<T> const& opt)
+save(Archive& ar, hcnet::optional<T> const& opt)
 {
     ar(make_nvp("has", !!opt));
     if (opt)
@@ -41,7 +41,7 @@ save(Archive& ar, HcNet::optional<T> const& opt)
 
 template <class Archive, class T>
 void
-load(Archive& ar, HcNet::optional<T>& o)
+load(Archive& ar, hcnet::optional<T>& o)
 {
     bool isSet;
     o.reset();
@@ -50,7 +50,7 @@ load(Archive& ar, HcNet::optional<T>& o)
     {
         T v;
         ar(make_nvp("val", v));
-        o = HcNet::make_optional<T>(v);
+        o = hcnet::make_optional<T>(v);
     }
 }
 } // namespace cereal

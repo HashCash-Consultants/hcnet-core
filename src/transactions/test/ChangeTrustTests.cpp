@@ -1,4 +1,4 @@
-// Copyright 2016 HcNet Development Foundation and contributors. Licensed
+// Copyright 2016 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
@@ -16,10 +16,10 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 
-using namespace HcNet;
-using namespace HcNet::txtest;
+using namespace hcnet;
+using namespace hcnet::txtest;
 
 TEST_CASE("change trust", "[tx][changetrust]")
 {
@@ -90,7 +90,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
                                   ex_CHANGE_TRUST_NO_ISSUER);
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!HcNet::loadAccount(ltx, gateway));
+                    REQUIRE(!hcnet::loadAccount(ltx, gateway));
                 }
             });
         }
@@ -100,14 +100,14 @@ TEST_CASE("change trust", "[tx][changetrust]")
         auto validateTrustLineIsConst = [&]() {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto trustLine =
-                HcNet::loadTrustLine(ltx, gateway.getPublicKey(), idr);
+                hcnet::loadTrustLine(ltx, gateway.getPublicKey(), idr);
             REQUIRE(trustLine);
             REQUIRE(trustLine.getBalance() == INT64_MAX);
         };
 
         auto loadAccount = [&](PublicKey const& k) {
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            auto le = HcNet::loadAccount(ltx, k).current();
+            auto le = hcnet::loadAccount(ltx, k).current();
             return le.data.account();
         };
 
@@ -241,5 +241,24 @@ TEST_CASE("change trust", "[tx][changetrust]")
             REQUIRE_THROWS_AS(acc1.changeTrust(idr, 0),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
         });
+    }
+
+    SECTION("sponsorship")
+    {
+        auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+        auto const minBalance1 = app->getLedgerManager().getLastMinBalance(1);
+        auto acc1 = root.create("a1", minBalance1 - 1);
+        auto acc2 = root.create("a2", minBalance0);
+        createSponsoredEntryButSponsorHasInsufficientBalance(
+            *app, acc1, acc2, changeTrust(idr, 1000),
+            [](OperationResult const& opRes) {
+                return opRes.tr().changeTrustResult().code() ==
+                       CHANGE_TRUST_LOW_RESERVE;
+            });
+
+        createModifyAndRemoveSponsoredEntry(
+            *app, acc2, changeTrust(idr, 1000), changeTrust(idr, 999),
+            changeTrust(idr, 1001), changeTrust(idr, 0),
+            trustlineKey(acc2, idr));
     }
 }

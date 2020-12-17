@@ -1,6 +1,6 @@
 #pragma once
 
-// Copyright 2017 HcNet Development Foundation and contributors. Licensed
+// Copyright 2017 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <string>
 
-namespace HcNet
+namespace hcnet
 {
 
 // Each catchup can be configured by two parameters destination ledger
@@ -26,8 +26,8 @@ namespace HcNet
 //
 // Value of destination ledger can be also set to CatchupConfiguration::CURRENT
 // which means that CatchupWork will get latest checkpoint from history archive
-// and catchup to that instead of destination ledger. This is usefull when
-// doing offline commandline catchups with HcNet-core catchup command.
+// and catchup to that instead of destination ledger. This is useful when
+// doing offline commandline catchups with hcnet-core catchup command.
 //
 // Catchup can be done in two modes - ONLINE nad OFFLINE. In ONLINE mode node
 // is connected to the network. If receives ledgers during catchup and applies
@@ -40,7 +40,11 @@ class CatchupConfiguration
   public:
     enum class Mode
     {
-        OFFLINE,
+        // Do validity checks only on files used for catchup
+        OFFLINE_BASIC,
+        // Do validity checks on all history archive file types for a given
+        // range, regardless of whether files are used or not
+        OFFLINE_COMPLETE,
         ONLINE
     };
     static const uint32_t CURRENT = 0;
@@ -77,6 +81,18 @@ class CatchupConfiguration
     mode() const
     {
         return mMode;
+    }
+
+    bool
+    offline() const
+    {
+        return mMode == Mode::OFFLINE_BASIC || mMode == Mode::OFFLINE_COMPLETE;
+    }
+
+    bool
+    online() const
+    {
+        return mMode == Mode::ONLINE;
     }
 
   private:

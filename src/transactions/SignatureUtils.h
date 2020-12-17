@@ -1,12 +1,13 @@
 #pragma once
 
-// Copyright 2016 HcNet Development Foundation and contributors. Licensed
+// Copyright 2016 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "xdr/HcNet-types.h"
+#include "xdr/Hcnet-ledger-entries.h"
+#include "xdr/Hcnet-types.h"
 
-namespace HcNet
+namespace hcnet
 {
 
 class ByteSlice;
@@ -19,6 +20,8 @@ namespace SignatureUtils
 
 DecoratedSignature sign(SecretKey const& secretKey, Hash const& hash);
 bool verify(DecoratedSignature const& sig, SignerKey const& signerKey,
+            Hash const& hash);
+bool verify(DecoratedSignature const& sig, PublicKey const& signerKey,
             Hash const& hash);
 
 DecoratedSignature signHashX(const ByteSlice& x);

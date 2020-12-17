@@ -1,5 +1,5 @@
 # Security Policy and reporting a Vulnerability
 
-HcNet-core falls under the HcNet Foundation's bug bounty program.
+hcnet-core falls under the Hcnet Foundation's bug bounty program.
 
-To report a security problem and review the details of the program, see the [HcNet bug bounty program](https://www.HcNet.org/bug-bounty-program/).
+To report a security problem and review the details of the program, see the [Hcnet bug bounty program](https://www.hcnet.org/bug-bounty-program/).

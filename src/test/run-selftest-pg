@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright 2018 HcNet Development Foundation and contributors. Licensed
+# Copyright 2018 Hcnet Development Foundation and contributors. Licensed
 # under the Apache License, Version 2.0. See the COPYING file at the root
 # of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
@@ -9,6 +9,13 @@ TESTS="$2"
 if [[ -z "$TEMP_POSTGRES" ]]; then
     TEMP_POSTGRES=1
 fi
+
+HCNET_CORE_DEFAULT_TEST_PARAMS="--ll fatal -w NoTests -a -r simple"
+if [[ "$ALL_VERSIONS" != "" ]]; then
+    HCNET_CORE_DEFAULT_TEST_PARAMS="$HCNET_CORE_DEFAULT_TEST_PARAMS --all-versions"
+fi
+
+: ${HCNET_CORE_TEST_PARAMS=$HCNET_CORE_DEFAULT_TEST_PARAMS}
 
 PGDIRS=$(exec 2>/dev/null; cd /usr/lib/postgresql && ls -1d */bin | sort -rn | xargs realpath)
 
@@ -56,9 +63,14 @@ runpg() {
 
     trap cleanup 0 2 15
 
-    echo Creating temporary PostgreSQL database cluster in "$PGDATA"
+    # pick a random utf locale if we can as to increase
+    # detection of encoding issues
+    DB_LOC=`locale -a | grep -i utf | shuf | head -1`
+    if [ -z "$DB_LOC" ] ; then DB_LOC="--no-locale" ; else DB_LOC="--locale=$DB_LOC" ; fi
 
-    $PGCTL init -s -o "--no-locale -U ${PGUSER-postgres} -A trust" \
+    echo Creating temporary PostgreSQL database cluster in "$PGDATA" with $DB_LOC
+
+    $PGCTL init -s -o "$DB_LOC -U ${PGUSER-postgres} -A trust" \
         || return 1
     conf="$PGDATA/postgresql.conf"
     usd=$(sed -ne '/#\(unix_socket_director[^ ]*\) =.*/{
@@ -93,8 +105,5 @@ if test "$TEMP_POSTGRES" != 0; then
 else
     echo "PostgreSQL enabled for tests using existing database cluster"
 fi
-if [ "$ALL_VERSIONS" != "" ]; then
-    ./HcNet-core test --ll fatal --base-instance $BASE_INSTANCE --all-versions -a -r simple "$TESTS" 2> /dev/null
-else                                 
-    ./HcNet-core test --ll fatal --base-instance $BASE_INSTANCE -a -r simple "$TESTS" 2> /dev/null
-fi
+
+./hcnet-core test $HCNET_CORE_TEST_PARAMS --base-instance $BASE_INSTANCE "$TESTS" 2> /dev/null

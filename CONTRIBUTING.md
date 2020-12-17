@@ -2,9 +2,9 @@
 
 👍🎉 First off, thanks for taking the time to contribute! 🎉👍
 
-Check out the [HcNet Contribution
-Guide](https://github.com/HcNet/.github/blob/master/CONTRIBUTING.md) for details on contributing
-to HcNet-core and HcNet's other repositories, especially with regard to our code of conduct and
+Check out the [Hcnet Contribution
+Guide](https://github.com/hcnet/.github/blob/master/CONTRIBUTING.md) for details on contributing
+to hcnet-core and Hcnet's other repositories, especially with regard to our code of conduct and
 contributor license agreement.
 
 ## Submitting Changes
@@ -17,13 +17,13 @@ Submit a pull request rebased on top of master
 At this point you're waiting on us. We like to at least comment on pull requests within one week
 (and, typically, three business days). We may suggest some changes or improvements or alternatives.
 
-## HcNet Core Contribution Specifics
+## Hcnet Core Contribution Specifics
 
 ### General
 * Try to separate logically distinct changes into separate commits and thematically distinct
   commits into separate pull requests.
 * Please ensure that all tests pass before submitting changes. The local testsuite can be run as
-  `make check` or `src/HcNet-core test`, see [README](./README.md) for details on running tests.
+  `make check` or `src/hcnet-core test`, see [README](./README.md) for details on running tests.
 
 ### Keeping our commit history clean
 
@@ -40,7 +40,7 @@ master as you pull changes from upstream.
 ### Testing
 
 Please ensure that all tests pass before submitting changes. The local testsuite can be run as
-`make check` or `src/HcNet-core --test`, see [README](./README.md) for details on running tests.
+`make check` or `src/hcnet-core --test`, see [README](./README.md) for details on running tests.
 
 ### Code Style
 
@@ -78,7 +78,8 @@ This enables additional debug checks such as passed the end iterators.
 More information can be found:
 * [libstdc++ debug mode](https://gcc.gnu.org/onlinedocs/libstdc++/manual/debug_mode.html)
 * [libc++ debug mode](https://libcxx.llvm.org/docs/DesignDocs/DebugMode.html#using-debug-mode)
-
+  * Note that when using the default libc++, we set `_LIBCPP_DEBUG=0` to avoid compatibility issues with the default shared runtimes.
+  * To enable full debug mode `_LIBCPP_DEBUG=1`, you need to build a custom libc++ with the same flags, including `_LIBCPP_DEBUG=1` (see below on how to do this)
 
 ## Sanitizers
 
@@ -124,13 +125,13 @@ to the configure script).
 
 ## Running tests basics
 run tests with:
-  `src/HcNet-core test`
+  `src/hcnet-core test`
 
 run one test with:
-  `src/HcNet-core test  testName`
+  `src/hcnet-core test  testName`
 
 run one test category with:
-  `src/HcNet-core test '[categoryName]'`
+  `src/hcnet-core test '[categoryName]'`
 
 Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by comma-listing).
 
@@ -139,13 +140,13 @@ Tests tagged as [.] or [hide] are not part of the default test.
 Tests tagged as [acceptance] are not part of `make check` test runs.
 
 supported test options can be seen with
-  `src/HcNet-core test --help`
+  `src/hcnet-core test --help`
 
 display tests timing information:
-  `src/HcNet-core test -d yes '[categoryName]'`
+  `src/hcnet-core test -d yes '[categoryName]'`
 
 xml test output (includes nested section information):
-  `src/HcNet-core test -r xml '[categoryName]'`
+  `src/hcnet-core test -r xml '[categoryName]'`
 
 ## Running tests against postgreSQL
 
@@ -191,6 +192,6 @@ We adopt the convention of tagging a stress-test for subsystem foo as [foo-stres
 
 Then, running:
 
-* `HcNet-core test [stress]` will run all the stress tests,
-* `HcNet-core test [foo-stress]` will run the stress tests for subsystem foo alone, and
-* neither `HcNet-core test` nor `HcNet-core test [foo]` will run stress tests.
+* `hcnet-core test [stress]` will run all the stress tests,
+* `hcnet-core test [foo-stress]` will run the stress tests for subsystem foo alone, and
+* neither `hcnet-core test` nor `hcnet-core test [foo]` will run stress tests.

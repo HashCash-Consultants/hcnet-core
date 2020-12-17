@@ -1,22 +1,24 @@
-// Copyright 2015 HcNet Development Foundation and contributors. Licensed
+// Copyright 2015 Hcnet Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #pragma once
 
+#include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerRange.h"
 #include "util/XDRStream.h"
+#include "work/ConditionalWork.h"
 #include "work/Work.h"
-#include "xdr/HcNet-SCP.h"
-#include "xdr/HcNet-ledger.h"
+#include "xdr/Hcnet-SCP.h"
+#include "xdr/Hcnet-ledger.h"
 
 namespace medida
 {
 class Meter;
 }
 
-namespace HcNet
+namespace hcnet
 {
 
 class TmpDir;
@@ -45,35 +47,36 @@ struct LedgerHeaderHistoryEntry;
 class ApplyCheckpointWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
-    LedgerRange const mCheckpointRange;
+    LedgerRange const mLedgerRange;
     uint32_t const mCheckpoint;
 
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
+    LedgerHeaderHistoryEntry mHeaderHistoryEntry;
 
     medida::Meter& mApplyLedgerSuccess;
     medida::Meter& mApplyLedgerFailure;
 
     bool mFilesOpen{false};
 
+    std::shared_ptr<ConditionalWork> mConditionalWork;
+
     TxSetFramePtr getCurrentTxSet();
     void openInputFiles();
-    bool applyHistoryOfSingleLedger();
+
+    std::shared_ptr<LedgerCloseData> getNextLedgerCloseData();
 
   public:
     ApplyCheckpointWork(Application& app, TmpDir const& downloadDir,
                         LedgerRange const& range);
     ~ApplyCheckpointWork() = default;
     std::string getStatus() const override;
+    void shutdown() override;
 
   protected:
     void onReset() override;
     State onRun() override;
-    bool
-    onAbort() override
-    {
-        return true;
-    };
+    bool onAbort() override;
 };
 }
