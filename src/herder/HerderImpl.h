@@ -94,15 +94,16 @@ class HerderImpl : public Herder
     void emitEnvelope(SCPEnvelope const& envelope);
 
     TransactionQueue::AddResult
-    recvTransaction(TransactionFrameBasePtr tx) override;
+    recvTransaction(TransactionFrameBasePtr tx,
+                    bool submittedFromSelf) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
 #ifdef BUILD_TESTS
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                    const SCPQuorumSet& qset,
-                                   TxSetFrame txset) override;
+                                   TxSetFrameConstPtr txset) override;
 
-    void externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
+    void externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
                           uint64_t closeTime,
                           xdr::xvector<UpgradeType, 6> const& upgrades,
                           std::optional<SecretKey> skToSignValue) override;
@@ -118,15 +119,20 @@ class HerderImpl : public Herder
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
     bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
-    bool recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
+    bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         Peer::pointer peer) override;
-    TxSetFramePtr getTxSet(Hash const& hash) override;
+    TxSetFrameConstPtr getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     void processSCPQueue();
 
     uint32 getMinLedgerSeqToAskPeers() const override;
+
+    uint32_t getMinLedgerSeqToRemember() const override;
+
+    bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                     SCPStatement const& newSt) override;
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
@@ -155,6 +161,8 @@ class HerderImpl : public Herder
     makeHcnetValue(Hash const& txSetHash, uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
+
+    void startTxSetGCTimer();
 
 #ifdef BUILD_TESTS
     // used for testing
@@ -192,6 +200,7 @@ class HerderImpl : public Herder
     void processSCPQueueUpToIndex(uint64 slotIndex);
     void safelyProcessSCPQueue(bool synchronous);
     void newSlotExternalized(bool synchronous, HcnetValue const& value);
+    void purgeOldPersistedTxSets();
 
     TransactionQueue mTransactionQueue;
 
@@ -234,6 +243,8 @@ class HerderImpl : public Herder
     VirtualTimer mTriggerTimer;
 
     VirtualTimer mOutOfSyncTimer;
+
+    VirtualTimer mTxSetGarbageCollectTimer;
 
     Application& mApp;
     LedgerManager& mLedgerManager;
@@ -291,8 +302,6 @@ class HerderImpl : public Herder
         }
     };
     QuorumMapIntersectionState mLastQuorumMapIntersectionState;
-
-    uint32_t getMinLedgerSeqToRemember() const;
 
     State mState;
     void setState(State st);

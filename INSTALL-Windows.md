@@ -4,13 +4,19 @@
 * try Settings -> System -> About and look under System Type
 * When in doubt, see http://www.tenforums.com/tutorials/4399-system-type-32-bit-x86-64-bit-x64-windows-10-a.html
 
-## Download and install `Visual Studio 2019` (for Visual C++) ; the Community Edition is free and fully functional.
+## Download and install `Visual Studio 2022` (for Visual C++) ; the Community Edition is free and fully functional.
 * See https://www.visualstudio.com/downloads/
 * When installing, you will need to select:
     * Desktop Development with C++
     * C++ Profiling (optional)
     * Windows 10 SDK
     * C++/CLI Support
+
+## Download and install rust
+
+Easiest is to use rustup, found on [rust-lang.org](https://www.rust-lang.org/tools/install).
+
+Install the x64 MSVC toolchain (`stable-x86_64-pc-windows-msvc`), and make sure that `rustc.exe` is in your `PATH`.
 
 ## Download and install PostgreSQL
 

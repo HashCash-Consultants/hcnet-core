@@ -156,7 +156,8 @@ clearFutures(Application::pointer app, BucketList& bl)
 }
 
 static Hash
-closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
+closeLedger(Application& app, std::optional<SecretKey> skToSignValue,
+            xdr::xvector<UpgradeType, 6> upgrades = emptyUpgradeSteps)
 {
     auto& lm = app.getLedgerManager();
     auto lcl = lm.getLastClosedLedgerHeader();
@@ -164,10 +165,9 @@ closeLedger(Application& app, std::optional<SecretKey> skToSignValue)
     CLOG_INFO(Bucket, "Artificially closing ledger {} with lcl={}, buckets={}",
               ledgerNum, hexAbbrev(lcl.hash),
               hexAbbrev(app.getBucketManager().getBucketList().getHash()));
-    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
-    app.getHerder().externalizeValue(txSet, ledgerNum,
-                                     lcl.header.scpValue.closeTime,
-                                     emptyUpgradeSteps, skToSignValue);
+    app.getHerder().externalizeValue(TxSetFrame::makeEmpty(lcl), ledgerNum,
+                                     lcl.header.scpValue.closeTime, upgrades,
+                                     skToSignValue);
     return lm.getLastClosedLedgerHeader().hash;
 }
 
@@ -276,7 +276,7 @@ TEST_CASE("skip list", "[bucket][bucketmanager]")
     btest.test();
 }
 
-TEST_CASE("bucketmanager ownership", "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS("bucketmanager ownership", "[bucket][bucketmanager]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
@@ -389,7 +389,8 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
     }
 }
 
-TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS("bucketmanager reattach to finished merge",
+                   "[bucket][bucketmanager]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
@@ -449,7 +450,8 @@ TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
     });
 }
 
-TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS("bucketmanager reattach to running merge",
+                   "[bucket][bucketmanager]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
@@ -534,8 +536,10 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
     cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
-    cfg.LEDGER_PROTOCOL_VERSION =
-        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1;
+    cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+        static_cast<uint32_t>(
+            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+        1;
 
     auto app = createTestApplication<BucketManagerTestApplication>(clock, cfg);
 
@@ -589,8 +593,9 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
     REQUIRE(bmRefBuckets.size() == bmDirBuckets.size());
 }
 
-TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
-          "[bucket][bucketmanager]")
+TEST_CASE_VERSIONS(
+    "bucketmanager reattach HAS from publish queue to finished merge",
+    "[bucket][bucketmanager]")
 {
     Config cfg(getTestConfig());
     cfg.MANUAL_CLOSE = false;
@@ -640,7 +645,8 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
         }
 
         auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
-        if (vers < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        if (protocolVersionIsBefore(vers,
+                                    Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
         {
             // Versions prior to FIRST_PROTOCOL_SHADOWS_REMOVED re-attach to
             // finished merges
@@ -791,7 +797,8 @@ class StopAndRestartBucketMergesTest
         checkSensiblePostInitEntryMergeCounters(uint32_t protocol) const
         {
             CHECK(mMergeCounters.mPostInitEntryProtocolMerges != 0);
-            if (protocol < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+            if (protocolVersionIsBefore(protocol,
+                                        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges == 0);
             }
@@ -817,7 +824,8 @@ class StopAndRestartBucketMergesTest
             CHECK(mMergeCounters.mOldInitEntriesMergedWithNewDead != 0);
             CHECK(mMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
 
-            if (protocol < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+            if (protocolVersionIsBefore(protocol,
+                                        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED))
             {
                 CHECK(mMergeCounters.mShadowScanSteps != 0);
                 CHECK(mMergeCounters.mLiveEntryShadowElisions != 0);
@@ -1097,7 +1105,7 @@ class StopAndRestartBucketMergesTest
         Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
-        cfg.LEDGER_PROTOCOL_VERSION = mProtocol;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = mProtocol;
         assert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         CLOG_INFO(Bucket,
@@ -1208,7 +1216,7 @@ class StopAndRestartBucketMergesTest
         Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
-        cfg.LEDGER_PROTOCOL_VERSION = firstProtocol;
+        cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION = firstProtocol;
         assert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         uint32_t currProtocol = firstProtocol;
@@ -1237,7 +1245,24 @@ class StopAndRestartBucketMergesTest
             resolveAllMerges(app->getBucketManager().getBucketList());
             auto countersBeforeClose =
                 app->getBucketManager().readMergeCounters();
-            closeLedger(*app);
+
+            if (firstProtocol != secondProtocol && i == protocolSwitchLedger)
+            {
+                CLOG_INFO(Bucket,
+                          "Switching protocol at ledger {} from protocol {} "
+                          "to protocol {}",
+                          i, firstProtocol, secondProtocol);
+
+                auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+                ledgerUpgrade.newLedgerVersion() = secondProtocol;
+                closeLedger(*app, std::nullopt,
+                            {LedgerTestUtils::toUpgradeType(ledgerUpgrade)});
+                currProtocol = secondProtocol;
+            }
+            else
+            {
+                closeLedger(*app);
+            }
 
             assert(i == app->getLedgerManager()
                             .getLastClosedLedgerHeader()
@@ -1267,14 +1292,10 @@ class StopAndRestartBucketMergesTest
                           "Stopping application after closing ledger {}", i);
                 app.reset();
 
+                // Prepare for protocol upgrade
                 if (firstProtocol != secondProtocol &&
                     i == protocolSwitchLedger)
                 {
-                    CLOG_INFO(
-                        Bucket,
-                        "Switching protocol at ledger {} from protocol {} "
-                        "to protocol {}",
-                        i, firstProtocol, secondProtocol);
                     cfg.LEDGER_PROTOCOL_VERSION = secondProtocol;
                 }
 
@@ -1319,8 +1340,9 @@ class StopAndRestartBucketMergesTest
         calculateDesignatedLedgers();
         collectControlSurveys();
         assert(!mControlSurveys.empty());
-        if (mProtocol >=
-            Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+        if (protocolVersionStartsFrom(
+                mProtocol,
+                Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY))
         {
             mControlSurveys.rbegin()->second.dumpMergeCounters(
                 "control, Post-INITENTRY", mDesignatedLevel);
@@ -1343,9 +1365,12 @@ TEST_CASE("bucket persistence over app restart with initentry",
           "[bucket][bucketmanager][bp-initentry][!hide]")
 {
     for (uint32_t protocol :
-         {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
-          Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED})
+         {static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+              1,
+          static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+          static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
     {
         for (uint32_t level : {2, 3})
         {
@@ -1360,9 +1385,12 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
           "[bucket][bucketmanager][bp-initentry-ext][!hide]")
 {
     for (uint32_t protocol :
-         {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
-          Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED})
+         {static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY) -
+              1,
+          static_cast<uint32_t>(
+              Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY),
+          static_cast<uint32_t>(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)})
     {
         for (uint32_t level : {2, 3, 4, 5})
         {
@@ -1372,8 +1400,8 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
     }
 }
 
-TEST_CASE("bucket persistence over app restart",
-          "[bucket][bucketmanager][bucketpersist]")
+TEST_CASE_VERSIONS("bucket persistence over app restart",
+                   "[bucket][bucketmanager][bucketpersist]")
 {
     std::vector<hcnet::LedgerKey> emptySet;
     std::vector<hcnet::LedgerEntry> emptySetEntry;
@@ -1383,7 +1411,8 @@ TEST_CASE("bucket persistence over app restart",
 
     for_versions_with_differing_bucket_logic(cfg0, [&](Config const& cfg0) {
         Config cfg1(getTestConfig(1, Config::TESTDB_ON_DISK_SQLITE));
-        cfg1.LEDGER_PROTOCOL_VERSION = cfg0.LEDGER_PROTOCOL_VERSION;
+        cfg1.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION =
+            cfg0.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
         cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
 
         std::vector<std::vector<LedgerEntry>> batches;

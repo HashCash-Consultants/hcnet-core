@@ -14,9 +14,9 @@ using namespace std;
 namespace hcnet
 {
 
-LedgerCloseData::LedgerCloseData(
-    uint32_t ledgerSeq, std::shared_ptr<AbstractTxSetFrameForApply> txSet,
-    HcnetValue const& v, std::optional<Hash> const& expectedLedgerHash)
+LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq, TxSetFrameConstPtr txSet,
+                                 HcnetValue const& v,
+                                 std::optional<Hash> const& expectedLedgerHash)
     : mLedgerSeq(ledgerSeq)
     , mTxSet(txSet)
     , mValue(v)

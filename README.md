@@ -121,7 +121,7 @@ export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgc
 
 ## Basic Installation
 
-- `git clone https://github.com/HashCash-Consultants/hcnet-core.git --branch v18.0.0`
+- `git clone https://github.com/HashCash-Consultants/hcnet-core.git --branch v19.3.0`
 - `cd hcnet-core`
 - `git submodule init`
 - `git submodule update`

@@ -96,13 +96,22 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
 ### OS X
 When building on OSX, here's some dependencies you'll need:
 - Install xcode
-- Install homebrew
-- brew install libsodium
-- brew install libtool
-- brew install automake
-- brew install pkg-config
-- brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
-- brew install parallel (required for running tests)
+- Install [homebrew](https://brew.sh)
+- `brew install libsodium`
+- `brew install libtool`
+- `brew install autoconf`
+- `brew install automake`
+- `brew install pkg-config`
+- `brew install libpq` (required for postgres)
+- `brew install openssl` (required for postgres)
+- `brew install parallel` (required for running tests)
+- `brew install ccache` (required for enabling ccache)
+
+You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
+```zsh
+export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
+export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
+```
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
@@ -156,3 +165,22 @@ The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their hea
 
     # On MacOS
     $ brew install capstone freetype2 glfw
+
+## Building with Rust
+
+Configuring with `--enable-next-protocol-version-unsafe-for-production` will build and embed components written in the [Rust](https://rust-lang.org) programming language. These components are currently only enabled when building the "next" protocol, not the "current" one.
+
+Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.57 or later.
+Currently we recommend using the system packages provided on Ubuntu, and the rust project's `rustup` installer on other systems.
+
+    # On Ubuntu
+    $ sudo apt-get install cargo
+
+    # On MacOS
+    $ brew install rustup-init
+    $ rustup-init
+
+To use an IDE with `rust-analyzer`, additional packages are required on Ubuntu:
+
+    # On Ubuntu
+    $ sudo apt-get install rust-src

@@ -28,9 +28,69 @@ TEST_FILES = $(TESTDATA_DIR)/hcnet-core_example.cfg $(TESTDATA_DIR)/hcnet-core_s
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/HcnetCoreVersion.cpp $(TEST_FILES)
 
 $(SRC_X_FILES:.x=.h): $(XDRC)
-SUFFIXES = .x .h
+SUFFIXES = .x .h .rs
 .x.h:
 	$(XDRC) -hh -pedantic -o $@ $<
+
+BISON=bison
+FLEX=flex
+
+util/xdrquery/XDRQueryScanner.cpp: util/xdrquery/XDRQueryScanner.ll
+	$(FLEX) --outfile=$@ $<
+
+util/xdrquery/XDRQueryParser.cpp: util/xdrquery/XDRQueryParser.yy
+	$(BISON) --defines=util/xdrquery/XDRQueryParser.h  --output=$@ $<
+
+util/xdrquery/XDRQueryParser.h: util/xdrquery/XDRQueryParser.cpp
+	touch $@
+
+BUILT_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQueryParser.h util/xdrquery/XDRQueryParser.cpp
+hcnet_core_SOURCES += util/xdrquery/XDRQueryScanner.cpp util/xdrquery/XDRQueryParser.h util/xdrquery/XDRQueryParser.cpp
+
+# Old automakes have buggy dependency tracking for conditional generated
+# sources. We work around this here by making rust/RustBridge.{cpp,h} generated
+# in all cases, and just empty in the non-rust case. Also because of the way old
+# automake relies on horrible path-munging code in config.status to extract the
+# names of depfiles from the Makefile itself, we can't use any variables in the
+# SOURCES addition we're doing here, have to list unadorned paths.
+
+BUILT_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
+hcnet_core_SOURCES += rust/RustBridge.h rust/RustBridge.cpp
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+RUST_BUILD_DIR=$(top_builddir)/src/rust
+RUST_BIN_DIR=$(RUST_BUILD_DIR)/bin
+RUST_TARGET_DIR=$(RUST_BUILD_DIR)/target
+RUST_CXXBRIDGE=$(RUST_BIN_DIR)/cxxbridge
+RUST_PROFILE=release
+LIBRUST_HCNET_CORE=$(RUST_TARGET_DIR)/$(RUST_PROFILE)/librust_hcnet_core.a
+hcnet_core_LDADD += $(LIBRUST_HCNET_CORE) -ldl
+
+$(RUST_CXXBRIDGE):
+	mkdir -p $(RUST_BIN_DIR)
+	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd
+
+rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
+	$(RUST_CXXBRIDGE) $< --header --output $@.tmp
+	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+
+rust/RustBridge.cpp: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
+	$(RUST_CXXBRIDGE) $< --output $@.tmp
+	if cmp -s $@.tmp $@; then rm -v $@.tmp; else mv -v $@.tmp $@; fi
+
+$(LIBRUST_HCNET_CORE): rust/Cargo.toml $(SRC_RUST_FILES) Makefile.am
+	cd $(RUST_BUILD_DIR) && cargo build --$(RUST_PROFILE) --target-dir $(abspath $(RUST_TARGET_DIR))
+	ranlib $@
+else
+
+rust/RustBridge.cpp:
+	touch $@
+
+rust/RustBridge.h:
+	touch $@
+
+endif # ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks

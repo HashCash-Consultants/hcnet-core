@@ -14,6 +14,7 @@
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
+#include "util/ProtocolVersion.h"
 #include "util/Timer.h"
 
 #include <deque>
@@ -67,7 +68,7 @@ assetPathToString(const std::deque<Asset>& assets)
 };
 }
 
-TEST_CASE("pathpayment", "[tx][pathpayment]")
+TEST_CASE_VERSIONS("pathpayment", "[tx][pathpayment]")
 {
     auto const& cfg = getTestConfig();
 
@@ -118,8 +119,6 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     auto usd = makeAsset(gateway2, "USD");
     auto cur3 = makeAsset(gateway2, "CUR3");
     auto cur4 = makeAsset(gateway2, "CUR4");
-
-    closeLedgerOn(*app, 2, 1, 1, 2016);
 
     SECTION("transact more than INT64_MAX in a path payment")
     {
@@ -682,7 +681,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
             auto pathPayment = [&](std::vector<Asset> const& path,
                                    Asset& noIssuer) {
-                if (ledgerVersion < 13)
+                if (protocolVersionIsBefore(ledgerVersion,
+                                            ProtocolVersion::V_13))
                 {
                     REQUIRE_THROWS_AS(source.pay(destination, idr, 11, usd, 11,
                                                  path, &noIssuer),
@@ -1555,7 +1555,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                     ledgerVersion = ltx.loadHeader().current().ledgerVersion;
                 }
 
-                if (ledgerVersion < 13)
+                if (protocolVersionIsBefore(ledgerVersion,
+                                            ProtocolVersion::V_13))
                 {
                     return;
                 }
@@ -4849,14 +4850,10 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     }
 }
 
-TEST_CASE("path payment uses all offers in a loop", "[tx][pathpayment]")
+TEST_CASE_VERSIONS("path payment uses all offers in a loop",
+                   "[tx][pathpayment]")
 {
-    // This test would downgrade the bucket protocol from >12 to 12
-    // with USE_CONFIG_FOR_GENESIS.  Some other tests in this module,
-    // however, rely on that being set, so we separate this one
-    // out into a test case with its own Application object.
     Config cfg = getTestConfig();
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
@@ -4942,9 +4939,9 @@ TEST_CASE("path payment uses all offers in a loop", "[tx][pathpayment]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
-            if (issuerToDelete && ledgerVersion >= 13)
+            if (issuerToDelete &&
+                protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_13))
             {
-                closeLedgerOn(*app, 2, 1, 1, 2016);
                 // remove issuer
                 issuerToDelete->merge(root);
             }

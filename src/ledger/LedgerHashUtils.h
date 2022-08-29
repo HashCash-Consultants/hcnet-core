@@ -7,6 +7,7 @@
 #include "crypto/ShortHash.h"
 #include "ledger/InternalLedgerEntry.h"
 #include "util/HashOfHash.h"
+#include "xdr/Hcnet-ledger-entries.h"
 #include "xdr/Hcnet-ledger.h"
 #include <functional>
 
@@ -140,6 +141,18 @@ template <> class hash<hcnet::LedgerKey>
             hcnet::hashMix(res, std::hash<hcnet::uint256>()(
                                       lk.liquidityPool().liquidityPoolID));
             break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case hcnet::CONTRACT_DATA:
+            hcnet::hashMix(res, std::hash<hcnet::uint256>()(
+                                      lk.contractData().contractID));
+            hcnet::hashMix(
+                res, hcnet::shortHash::xdrComputeHash(lk.contractData().key));
+            break;
+        case hcnet::CONFIG_SETTING:
+            hcnet::hashMix(
+                res, std::hash<int32_t>()(lk.configSetting().configSettingID));
+            break;
+#endif
         default:
             abort();
         }

@@ -9,6 +9,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 
 namespace hcnet
@@ -50,7 +51,7 @@ PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset)
     if (asset.type() != ASSET_TYPE_NATIVE)
     {
         uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-        if (ledgerVersion < 13 &&
+        if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_13) &&
             !hcnet::loadAccountWithoutRecord(ltx, getIssuer(asset)))
         {
             setResultNoIssuer(asset);
@@ -141,7 +142,8 @@ PathPaymentOpFrameBase::updateSourceBalance(AbstractLedgerTxn& ltx,
     {
         auto header = ltx.loadHeader();
         LedgerTxnEntry sourceAccount;
-        if (header.current().ledgerVersion > 7)
+        if (protocolVersionStartsFrom(header.current().ledgerVersion,
+                                      ProtocolVersion::V_8))
         {
             sourceAccount = hcnet::loadAccount(ltx, getSourceID());
             if (!sourceAccount)
@@ -212,7 +214,9 @@ PathPaymentOpFrameBase::updateDestBalance(AbstractLedgerTxn& ltx,
         auto destination = hcnet::loadAccount(ltx, destID);
         if (!addBalance(ltx.loadHeader(), destination, amount))
         {
-            if (ltx.loadHeader().current().ledgerVersion >= 11)
+            if (protocolVersionStartsFrom(
+                    ltx.loadHeader().current().ledgerVersion,
+                    ProtocolVersion::V_11))
             {
                 setResultLineFull();
             }

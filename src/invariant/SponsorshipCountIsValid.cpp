@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/ProtocolVersion.h"
 #include "util/UnorderedMap.h"
 #include <fmt/format.h>
 
@@ -46,6 +47,10 @@ getMult(LedgerEntry const& le)
         return 1;
     case CLAIMABLE_BALANCE:
         return le.data.claimableBalance().claimants.size();
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONTRACT_DATA:
+    case CONFIG_SETTING:
+#endif
     case LIQUIDITY_POOL:
         throw std::runtime_error("invalid LedgerEntry type");
     default:
@@ -66,6 +71,10 @@ getAccountID(LedgerEntry const& le)
         return le.data.offer().sellerID;
     case DATA:
         return le.data.data().accountID;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONTRACT_DATA:
+    case CONFIG_SETTING:
+#endif
     case CLAIMABLE_BALANCE:
     case LIQUIDITY_POOL:
         throw std::runtime_error("invalid LedgerEntry type");
@@ -158,7 +167,7 @@ SponsorshipCountIsValid::checkOnOperationApply(Operation const& operation,
 {
     // No sponsorships prior to protocol 14
     auto ledgerVersion = ltxDelta.header.current.ledgerVersion;
-    if (ledgerVersion < 14)
+    if (protocolVersionIsBefore(ledgerVersion, ProtocolVersion::V_14))
     {
         return {};
     }

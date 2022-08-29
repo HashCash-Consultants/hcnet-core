@@ -4,6 +4,7 @@
 
 #include "work/ConditionalWork.h"
 #include "work/WorkWithCallback.h"
+#include "xdr/Hcnet-ledger-entries.h"
 #include <limits>
 #define HCNET_CORE_REAL_TIMER_FOR_CERTAIN_NOT_JUST_VIRTUAL_TIME
 #include "ApplicationImpl.h"
@@ -194,6 +195,16 @@ maybeRebuildLedger(Application& app, bool applyBuckets)
                 LOG_INFO(DEFAULT_LOG, "Dropping liquiditypools");
                 app.getLedgerTxnRoot().dropLiquidityPools();
                 break;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+            case CONTRACT_DATA:
+                LOG_INFO(DEFAULT_LOG, "Dropping contractdata");
+                app.getLedgerTxnRoot().dropContractData();
+                break;
+            case CONFIG_SETTING:
+                LOG_INFO(DEFAULT_LOG, "Dropping configsettings");
+                app.getLedgerTxnRoot().dropConfigSettings();
+                break;
+#endif
             default:
                 abort();
             }
@@ -498,7 +509,8 @@ void
 ApplicationImpl::reportInfo()
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
-    LOG_INFO(DEFAULT_LOG, "info -> {}", getJsonInfo().toStyledString());
+    LOG_INFO(DEFAULT_LOG, "Reporting application info");
+    std::cout << getJsonInfo().toStyledString() << std::endl;
 }
 
 std::shared_ptr<BasicWork>
@@ -763,13 +775,7 @@ ApplicationImpl::gracefulStop()
 void
 ApplicationImpl::shutdownMainIOContext()
 {
-    if (!mVirtualClock.getIOContext().stopped())
-    {
-        // Drain all events; things are shutting down.
-        while (mVirtualClock.cancelAllEvents())
-            ;
-        mVirtualClock.getIOContext().stop();
-    }
+    mVirtualClock.shutdown();
 }
 
 void
@@ -1270,6 +1276,12 @@ ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
     mVirtualClock.postAction(
         [this, f = std::move(f), isSlow]() {
             mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
+            auto sleepFor =
+                this->getConfig().ARTIFICIALLY_SLEEP_MAIN_THREAD_FOR_TESTING;
+            if (sleepFor > std::chrono::microseconds::zero())
+            {
+                std::this_thread::sleep_for(sleepFor);
+            }
             f();
         },
         std::move(name), type);

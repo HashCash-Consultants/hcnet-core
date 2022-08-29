@@ -268,6 +268,7 @@ TCPPeer::messageSender()
     CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}", toString(),
                expected_length, mWriteBuffers.size(), mWriteQueue.size());
     getOverlayMetrics().mAsyncWrite.Mark();
+    mPeerMetrics.mAsyncWrite++;
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     asio::async_write(*(mSocket.get()), mWriteBuffers,
                       [self, expected_length](asio::error_code const& ec,
@@ -293,7 +294,8 @@ TCPPeer::messageSender()
                           while (!self->mWriteBuffers.empty())
                           {
                               i->mCompletedTime = now;
-                              i->recordWriteTiming(self->getOverlayMetrics());
+                              i->recordWriteTiming(self->getOverlayMetrics(),
+                                                   self->mPeerMetrics);
                               ++i;
                               self->mWriteBuffers.pop_back();
                           }
@@ -311,7 +313,8 @@ TCPPeer::messageSender()
 }
 
 void
-TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics)
+TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics,
+                                               PeerMetrics& peerMetrics)
 {
     auto qdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
         mIssuedTime - mEnqueuedTime);
@@ -319,6 +322,8 @@ TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics)
         mCompletedTime - mIssuedTime);
     metrics.mMessageDelayInWriteQueueTimer.Update(qdelay);
     metrics.mMessageDelayInAsyncWriteTimer.Update(wdelay);
+    peerMetrics.mMessageDelayInWriteQueueTimer.Update(qdelay);
+    peerMetrics.mMessageDelayInAsyncWriteTimer.Update(wdelay);
 }
 
 void
@@ -420,6 +425,14 @@ TCPPeer::scheduleRead()
     // Post to the peer-specific Scheduler a call to ::startRead below;
     // this will be throttled to try to balance input rates across peers.
     ZoneScoped;
+
+    if (mIsPeerThrottled)
+    {
+        return;
+    }
+
+    releaseAssert(hasReadingCapacity());
+
     assertThreadIsMain();
     if (shouldAbort())
     {
@@ -436,6 +449,7 @@ TCPPeer::startRead()
 {
     ZoneScoped;
     assertThreadIsMain();
+    releaseAssert(hasReadingCapacity());
     if (shouldAbort())
     {
         return;
@@ -466,6 +480,8 @@ TCPPeer::startRead()
             return;
         }
         size_t length = getIncomingMsgLength();
+
+        // in_avail = amount of unread data
         if (mSocket->in_avail() >= length)
         {
             // We can finish reading a full message here synchronously,
@@ -487,6 +503,14 @@ TCPPeer::startRead()
                 }
                 noteFullyReadBody(length);
                 recvMessage();
+                if (!hasReadingCapacity())
+                {
+                    // Break and wait until more capacity frees up
+                    CLOG_DEBUG(Overlay, "Throttle reading from peer {}!",
+                               mApp.getConfig().toShortString(getPeerID()));
+                    mIsPeerThrottled = true;
+                    return;
+                }
                 if (mApp.getClock().shouldYield())
                 {
                     break;
@@ -495,6 +519,9 @@ TCPPeer::startRead()
         }
         else
         {
+            // No throttling - we just read a header, so we must have capacity
+            releaseAssert(hasReadingCapacity());
+
             // We read a header synchronously, but don't have enough data in the
             // buffered_stream to read the body synchronously. Pretend we just
             // finished reading the header asynchronously, and punt to
@@ -511,6 +538,7 @@ TCPPeer::startRead()
         // header (message length), issue an async_read and hope that the
         // buffering pulls in much more than just the 4 bytes we ask for here.
         getOverlayMetrics().mAsyncRead.Mark();
+        mPeerMetrics.mAsyncRead++;
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
         asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
                          [self](asio::error_code ec, std::size_t length) {
@@ -620,6 +648,16 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
         // sequence happens after the first read of a single large input-buffer
         // worth of input. Even when we weren't preempted, we still bounce off
         // the per-peer scheduler queue here, to balance input across peers.
+        if (!hasReadingCapacity())
+        {
+            // No more capacity after processing this message
+            CLOG_DEBUG(Overlay,
+                       "TCPPeer::readBodyHandler: throttle reading from {}",
+                       mApp.getConfig().toShortString(getPeerID()));
+            mIsPeerThrottled = true;
+            return;
+        }
+
         scheduleRead();
     }
 }
@@ -629,6 +667,7 @@ TCPPeer::recvMessage()
 {
     ZoneScoped;
     assertThreadIsMain();
+    releaseAssert(hasReadingCapacity());
 
     try
     {
@@ -663,18 +702,22 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
         return;
     }
 
+    std::string connectionType =
+        isFlowControlled() ? "flow-controlled" : "not flow-controlled";
     if (mState != GOT_AUTH)
     {
-        CLOG_DEBUG(Overlay, "TCPPeer::drop {} in state {} we called:{}",
-                   toString(), mState, mRole);
+        CLOG_DEBUG(Overlay, "TCPPeer::drop {} {} in state {} we called:{}",
+                   connectionType, toString(), mState, mRole);
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
-        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
+        CLOG_INFO(Overlay, "Dropping {} peer {}, reason {}", connectionType,
+                  toString(), reason);
     }
     else
     {
-        CLOG_INFO(Overlay, "Peer {} dropped us, reason {}", toString(), reason);
+        CLOG_INFO(Overlay, "{} peer {} dropped us, reason {}", connectionType,
+                  toString(), reason);
     }
 
     mState = CLOSING;

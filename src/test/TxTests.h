@@ -86,9 +86,22 @@ void checkLiquidityPool(Application& app, PoolID const& poolID,
                         int64_t poolSharesTrustLineCount);
 
 TxSetResultMeta
-closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+closeLedger(Application& app,
+            std::vector<TransactionFrameBasePtr> const& txs = {},
+            bool strictOrder = false);
+
+TxSetResultMeta
+closeLedgerOn(Application& app, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
+
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
+              std::vector<TransactionFrameBasePtr> const& txs = {},
+              bool strictOrder = false);
+
+TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
+                              time_t closeTime, TxSetFrameConstPtr txSet);
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
@@ -116,12 +129,18 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 TransactionFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            std::vector<Operation> const& ops, int fee = 0);
+                            std::vector<Operation> const& ops, int fee,
+                            std::optional<PreconditionsV2> cond = std::nullopt);
 TransactionFramePtr transactionFromOperations(Application& app,
                                               SecretKey const& from,
                                               SequenceNumber seq,
                                               std::vector<Operation> const& ops,
                                               int fee = 0);
+TransactionFramePtr transactionWithV2Precondition(Application& app,
+                                                  TestAccount& account,
+                                                  int64_t sequenceDelta,
+                                                  uint32_t fee,
+                                                  PreconditionsV2 const& cond);
 
 Operation changeTrust(Asset const& asset, int64_t limit);
 Operation changeTrust(ChangeTrustAsset const& asset, int64_t limit);
@@ -250,11 +269,10 @@ void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
 TransactionFrameBasePtr
 transactionFrameFromOps(Hash const& networkID, TestAccount& source,
                         std::vector<Operation> const& ops,
-                        std::vector<SecretKey> const& opKeys);
+                        std::vector<SecretKey> const& opKeys,
+                        std::optional<PreconditionsV2> cond = std::nullopt);
 
 LedgerUpgrade makeBaseReserveUpgrade(int baseReserve);
-
-UpgradeType toUpgradeType(LedgerUpgrade const& upgrade);
 
 LedgerHeader executeUpgrades(Application& app,
                              xdr::xvector<UpgradeType, 6> const& upgrades);

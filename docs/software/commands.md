@@ -34,6 +34,45 @@ Command options can only by placed after command.
   private key. For example:
 
 `$ hcnet-core convert-id SDQVDISRYN2JXBS7ICL7QJAEKB3HWBJFP2QECXG7GZICAHBK4UNJCWK2`
+* **dump-ledger**: Dumps the current ledger state from bucket files into
+    JSON **--output-file** with optional filtering. **--last-ledgers** option
+    allows to only dump the ledger entries that were last modified within that
+    many ledgers. **--limit** option limits the output to that many arbitrary
+    records. **--filter-query** allows to specify a filtering expression over
+    `LedgerEntry` XDR. Expression should evaluate to boolean and consist of
+    field paths, comparisons, literals, boolean operators (`&&`, ` ||`) and
+    parentheses. The field values are consistent with `print-xdr` JSON
+    representation: enums are represented as their name strings, account ids as
+    encoded strings, hashes as hex strings etc. Filtering is useful to minimize
+    the output JSON size and then optionally process it further with tools like
+    `jq`. Query filter examples:
+    
+    * `data.type == 'OFFER'` - dump only offers
+    * `data.account.accountID == 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' || 
+       data.trustLine.accountID == "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"`
+       - dump only account and trustline entries for the specified account.
+    * `data.account.inflationDest != NULL` - dump accounts that have an optional
+      `inflationDest` field set.
+    * `data.offer.selling.assetCode == 'FOOBAR' &&
+       data.offer.selling.issuer == 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'` -
+       dump offers that are selling the specified asset.
+    * `data.trustLine.ext.v1.liabilities.buying < data.trustLine.ext.v1.liabilities.selling` -
+      dump trustlines that have buying liabilites less than selling liabilites
+    * `(data.account.balance < 100000000 || data.account.balance >= 2000000000) 
+       && data.account.numSubEntries > 2` - dump accounts with certain balance 
+       and sub entries count, demonstrates more complex expression
+   
+   This command may also be used to aggregate ledger data to a CSV table using all 
+   the above options in combination with **--agg** and (optionally) **--group-by**.
+   **--agg** supports the following aggregation functions: `sum`, `avg` and `count`.
+   For example:
+
+   * `--group-by "data.type" --agg "count()"` - find the count of entries per type.
+   * `--group-by "data.offer.selling.assetCode, data.offer.selling.issuer" 
+      --agg "sum(data.offer.amount), avg(data.offer.amount)"` - find the total offer
+      amount and average offer amount per selling offer asset name and issuer.
+   
+   See more examples in [ledger_query_examples.md](ledger_query_examples.md).
 
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
 * **encode-asset --code <CODE> --issuer <ISSUER>**: Prints a base-64 encoded asset.
@@ -55,7 +94,7 @@ Command options can only by placed after command.
   specified in the hcnet-core.cfg. This will write a
   `.well-known/hcnet-history.json` file in the archive root.
 * **offline-info**: Returns an output similar to `--c info` for an offline
-  instance
+  instance, but written directly to standard output (ignoring log levels).
 * **print-xdr <FILE-NAME>**:  Pretty-print a binary file containing an XDR
   object. If FILE-NAME is "stdin", the XDR object is read from standard input.<br>
   Option **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**
@@ -132,10 +171,6 @@ format.
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
 
-* **checkpoint**
-  Triggers the instance to write an immediate history checkpoint. And uploads
-  it to the archive.
-
 * **connect**
   `connect?peer=NAME&port=NNN`<br>
   Triggers the instance to connect to peer NAME at port NNN.
@@ -179,9 +214,10 @@ format.
   Clear metrics for a specified domain. If no domain specified, clear all
   metrics (for testing purposes).
 
-* **peers?[&fullkeys=false]**
-  Returns the list of known peers in JSON format.
+* **peers?[&fullkeys=false&compact=true]**
+  Returns the list of known peers in JSON format with some metrics.
   If `fullkeys` is set, outputs unshortened public keys.
+  If `compact` is `false`, it will output extra metrics.
 
 * **quorum**
   `quorum?[node=NODE_ID][&compact=false][&fullkeys=false][&transitive=false]`<br>
@@ -194,6 +230,11 @@ format.
   If `compact` is set, only returns a summary version.
 
   If `fullkeys` is set, outputs unshortened public keys.
+  The quorum endpoint categorizes each node as following:
+  * `missing`: didn't participate in the latest consensus rounds.
+  * `disagree`: participating in the latest consensus rounds, but working on different values.
+  * `delayed`: participating in the latest consensus rounds, but slower than others.
+  * `agree`: running just fine.
 
 * **setcursor**
   `setcursor?id=ID&cursor=N`<br>
@@ -234,22 +275,24 @@ format.
     Retrieves the currently configured upgrade settings.<br>
   * `upgrades?mode=clear`<br>
     Clears any upgrade settings.<br>
-  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]`<br>
-    * upgradetime is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
+  * `upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsetsize=NUM]&[protocolversion=NUM]`<br>
+    * `upgradetime` is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
         It is the time the upgrade will be scheduled for. If it is in the past
         by less than 12 hours, the upgrade will occur immediately. If it's more
         than 12 hours, then the upgrade will be ignored<br>
-    * fee (uint32) This is what you would prefer the base fee to be. It is in
+    * `fee` (uint32) This is what you would prefer the base fee to be. It is in
         stroops<br>
-    * basereserve (uint32) This is what you would prefer the base reserve to
+    * `basereserve` (uint32) This is what you would prefer the base reserve to
         be. It is in stroops.<br>
-    * maxtxsize (uint32) This defines the maximum number of transactions to
-        include in a ledger. When too many transactions are pending, surge
-        pricing is applied. The instance picks the top maxtxsize transactions
-        locally to be considered in the next ledger. Where transactions are
-        ordered by transaction fee(lower fee transactions are held for later).
+    * `maxtxsetsize` (uint32) This defines the maximum number of operations in 
+        the transaction set to include in a ledger. When too many transactions 
+        are pending, surge pricing is applied. The instance picks the 
+        transactions from the transaction queue locally to be considered in the 
+        next ledger until at most `maxtxsetsize` operations are accumulated.
+        Transactions are ordered by fee per operation (transactions with lower 
+        operation fees are held for later)
         <br>
-    * protocolversion (uint32) defines the protocol version to upgrade to.
+    * `protocolversion` (uint32) defines the protocol version to upgrade to.
         When specified it must match one of the protocol versions supported
         by the node and should be greater than ledgerVersion from the current
         ledger<br>

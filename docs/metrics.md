@@ -37,6 +37,7 @@ herder.pending-txs.age2                  | counter   | number of gen2 pending tr
 herder.pending-txs.age3                  | counter   | number of gen3 pending transactions
 herder.pending-txs.banned                | counter   | number of transactions that got banned
 herder.pending-txs.delay                 | timer     | time for transactions to be included in a ledger
+herder.pending-txs.self-delay            | timer     | time for transactions submitted from this node to be included in a ledger
 history.check.failure                    | meter     | history archive status checks failed
 history.check.success                    | meter     | history archive status checks succeeded
 history.publish.failure                  | meter     | published failed
@@ -68,6 +69,7 @@ overlay.byte.write                       | meter     | number of bytes sent
 overlay.async.read                       | meter     | number of async read requests issued
 overlay.async.write                      | meter     | number of async write requests issued
 overlay.connection.authenticated         | counter   | number of authenticated peers
+overlay.flow-control.percentage          | counter   | percentage of authenticated connections that enable flow control
 overlay.connection.latency               | timer     | estimated latency between peers
 overlay.connection.pending               | counter   | number of pending connections
 overlay.delay.async-write                | timer     | time between each message's async write issue and completion
@@ -83,6 +85,8 @@ overlay.inbound.attempt                  | meter     | inbound connection attemp
 overlay.inbound.drop                     | meter     | inbound connection dropped
 overlay.inbound.establish                | meter     | inbound connection established (added to pending)
 overlay.inbound.reject                   | meter     | inbound connection rejected
+overlay.outbound-queue.scp               | timer     | time SCP traffic sits in flow-controlled queues
+overlay.outbound-queue.tx                | timer     | time tx traffic sits in flow-controlled queues
 overlay.item-fetcher.next-peer           | meter     | ask for item past the first one
 overlay.memory.flood-known               | counter   | number of known flooded entries
 overlay.message.broadcast                | meter     | message broadcasted

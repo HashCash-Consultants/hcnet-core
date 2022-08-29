@@ -15,7 +15,7 @@
 using namespace hcnet;
 using namespace hcnet::txtest;
 
-TEST_CASE("clawback", "[tx][clawback]")
+TEST_CASE_VERSIONS("clawback", "[tx][clawback]")
 {
     Config const& cfg = getTestConfig();
 

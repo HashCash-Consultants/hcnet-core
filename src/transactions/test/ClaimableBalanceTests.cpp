@@ -14,6 +14,7 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include <fmt/format.h>
 
 using namespace hcnet;
@@ -52,7 +53,7 @@ randomizePredicatePos(ClaimPredicate pred1, ClaimPredicate pred2,
                       xdr::xvector<ClaimPredicate, 2>& vec)
 {
     hcnet::uniform_int_distribution<size_t> dist(0, 1);
-    bool randBool = dist(gRandomEngine);
+    bool randBool = dist(Catch::rng());
 
     auto const& firstPred = randBool ? pred1 : pred2;
     auto const& secondPred = randBool ? pred2 : pred1;
@@ -295,10 +296,9 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             claimAccBalanceAfterClaim);
 }
 
-TEST_CASE("claimableBalance", "[tx][claimablebalance]")
+TEST_CASE_VERSIONS("claimableBalance", "[tx][claimablebalance]")
 {
     Config cfg = getTestConfig();
-    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
@@ -324,7 +324,6 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
     auto simplePred = makeSimplePredicate(3); // validPredicate
 
     xdr::xvector<Claimant, 10> validClaimants{makeClaimant(acc2, simplePred)};
-
     SECTION("not supported before version 14")
     {
         for_versions_to(13, *app, [&] {
@@ -1101,15 +1100,13 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
             auto accA = root.create("accA", minBalance3);
             auto accB = root.create("accB", lm.getLastMinBalance(4));
 
-            // Allow accA to submit an op from accB. This will bump accB's
-            // seqnum up by 1
+            // Allow accA to submit an op from accB.
             auto sk1 = makeSigner(accA, 100);
             accB.setOptions(setSigner(sk1));
 
-            // Move accA seqnum up by one so accA and accB have the same seqnum
+            // Move accA seqnum to accB's
             accA.bumpSequence(accB.getLastSequenceNumber());
-            REQUIRE(accA.getLastSequenceNumber() ==
-                    accB.getLastSequenceNumber());
+            REQUIRE(accA.loadSequenceNumber() == accB.loadSequenceNumber());
 
             // accB and accA have the same seq num. Create a claimable balance
             // with accB twice. Once using accB as the Tx account, and once with
@@ -1304,7 +1301,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                 ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
 
-            if (ledgerVersion >= 17)
+            if (protocolVersionStartsFrom(ledgerVersion, ProtocolVersion::V_17))
             {
                 SECTION("clawback")
                 {

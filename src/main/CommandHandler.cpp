@@ -21,6 +21,7 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/StatusManager.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -257,6 +258,9 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, retMap);
 
     bool fullKeys = retMap["fullkeys"] == "true";
+    // compact should be true by default
+    // as the response can be quite verbose.
+    bool compact = retMap["compact"] != "false";
     Json::Value root;
 
     auto& pendingPeers = root["pending_peers"];
@@ -283,11 +287,7 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
             for (auto const& peer : peers)
             {
                 auto& peerNode = node[counter++];
-                peerNode["address"] = peer.second->toString();
-                peerNode["elapsed"] = (int)peer.second->getLifeTime().count();
-                peerNode["latency"] = (int)peer.second->getPing().count();
-                peerNode["ver"] = peer.second->getRemoteVersion();
-                peerNode["olver"] = (int)peer.second->getRemoteOverlayVersion();
+                peerNode = peer.second->getJsonInfo(compact);
                 peerNode["id"] =
                     mApp.getConfig().toStrKey(peer.first, fullKeys);
             }
@@ -535,7 +535,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 
         p.mBaseFee = parseOptionalParam<uint32>(retMap, "basefee");
         p.mBaseReserve = parseOptionalParam<uint32>(retMap, "basereserve");
-        p.mMaxTxSize = parseOptionalParam<uint32>(retMap, "maxtxsize");
+        p.mMaxTxSetSize = parseOptionalParam<uint32>(retMap, "maxtxsetsize");
         p.mProtocolVersion =
             parseOptionalParam<uint32>(retMap, "protocolversion");
         p.mFlags = parseOptionalParam<uint32>(retMap, "flags");
@@ -669,7 +669,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
 
         {
             auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
-            if (lhhe.header.ledgerVersion >= 13)
+            if (protocolVersionStartsFrom(lhhe.header.ledgerVersion,
+                                          ProtocolVersion::V_13))
             {
                 envelope = txbridge::convertForV13(envelope);
             }
@@ -682,7 +683,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             // add it to our current set
             // and make sure it is valid
             TransactionQueue::AddResult status =
-                mApp.getHerder().recvTransaction(transaction);
+                mApp.getHerder().recvTransaction(transaction, true);
 
             output << "{"
                    << "\"status\": "
@@ -1007,7 +1008,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        auto status = mApp.getHerder().recvTransaction(txFrame);
+        auto status = mApp.getHerder().recvTransaction(txFrame, true);
         root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {

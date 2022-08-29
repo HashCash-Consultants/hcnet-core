@@ -159,6 +159,12 @@ getShortKey(LedgerKey const& key)
         return getShortKey(key.claimableBalance().balanceID);
     case LIQUIDITY_POOL:
         return getShortKey(key.liquidityPool().liquidityPoolID);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    case CONFIG_SETTING:
+        return static_cast<uint8_t>(key.configSetting().configSettingID);
+    case CONTRACT_DATA:
+        return key.contractData().contractID.at(0);
+#endif
     }
     throw std::runtime_error("Unknown key type");
 }
@@ -236,7 +242,7 @@ generateStoredLedgerKeys(StoredLedgerKeys::iterator begin,
     // Generate unvalidated ledger entry keys.
     std::generate(firstUnvalidatedLedgerKey, end, []() {
         size_t const entrySize = 3;
-        return autocheck::generator<LedgerKey>()(entrySize);
+        return LedgerTestUtils::generateLedgerKey(entrySize);
     });
 }
 
@@ -556,7 +562,7 @@ struct xdr_fuzzer_unpacker
         }
         else if (w == UINT8_MAX - 1)
         {
-            int64_t maxT = std::numeric_limits<T>::max();
+            auto maxT = std::numeric_limits<T>::max();
             return xdr_traits<T>::from_uint(maxT - 1);
         }
 
@@ -2039,8 +2045,11 @@ OverlayFuzzer::inject(std::string const& filename)
     auto acceptor = loopbackPeerConnection->getAcceptor();
 
     initiator->getApp().getClock().postAction(
-        [initiator, msg]() { initiator->Peer::sendMessage(msg); }, "main",
-        Scheduler::ActionType::NORMAL_ACTION);
+        [initiator, msg]() {
+            initiator->Peer::sendMessage(
+                std::make_shared<HcnetMessage const>(msg));
+        },
+        "main", Scheduler::ActionType::NORMAL_ACTION);
 
     mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
 

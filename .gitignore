@@ -41,7 +41,8 @@ compile_commands.json
 
 /src/archtmp-*
 /src/main/HcnetCoreVersion.cpp
-/src/xdr/*.h
+/src/protocol-curr/xdr/*.h
+/src/protocol-next/xdr/*.h
 /Makefile
 /Makefile.in
 /aclocal.m4
@@ -84,6 +85,15 @@ fuzz-findings/
 min-testcases/
 /my-history/
 
+# Rust specific
+/src/rust/bin
+/src/rust/target
+/target
+/src/rust/RustBridge.cpp
+/src/rust/RustBridge.h
+/src/rust/.crates.toml
+/src/rust/.crates2.json
+
 # Windows specific
 **/Build/*
 **/generated/*
@@ -92,3 +102,7 @@ min-testcases/
 *.vcxproj.user
 **/.vs/*
 
+/src/util/xdrquery/XDRQueryScanner.cpp
+/src/util/xdrquery/XDRQueryParser.h
+/src/util/xdrquery/XDRQueryParser.cpp
+/src/util/xdrquery/stack.hh

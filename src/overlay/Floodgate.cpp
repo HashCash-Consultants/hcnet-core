@@ -114,8 +114,7 @@ Floodgate::broadcast(HcnetMessage const& msg, bool force)
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
 
     bool broadcasted = false;
-    std::shared_ptr<HcnetMessage> smsg =
-        std::make_shared<HcnetMessage>(msg);
+    auto smsg = std::make_shared<HcnetMessage const>(msg);
     for (auto peer : peers)
     {
         releaseAssert(peer.second->isAuthenticated());
@@ -129,7 +128,7 @@ Floodgate::broadcast(HcnetMessage const& msg, bool force)
                     auto strong = weak.lock();
                     if (strong)
                     {
-                        strong->sendMessage(*smsg, log);
+                        strong->sendMessage(smsg, log);
                     }
                 },
                 fmt::format(FMT_STRING("broadcast to {}"),

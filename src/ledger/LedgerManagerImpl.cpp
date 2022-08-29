@@ -33,6 +33,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
@@ -241,7 +242,7 @@ LedgerManagerImpl::startNewLedger()
     auto const& cfg = mApp.getConfig();
     if (cfg.USE_CONFIG_FOR_GENESIS)
     {
-        ledger.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
+        ledger.ledgerVersion = cfg.TESTING_UPGRADE_LEDGER_PROTOCOL_VERSION;
         ledger.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE;
         ledger.baseReserve = cfg.TESTING_UPGRADE_RESERVE;
         ledger.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
@@ -378,6 +379,7 @@ LedgerManagerImpl::setupInMemoryStateRebuild()
                     binToHex(xdrSha256(lh)));
         ps.setState(PersistentState::kHistoryArchiveState, has.toString());
         ps.setState(PersistentState::kLastSCPData, "");
+        ps.setState(PersistentState::kLastSCPDataXDR, "");
         ps.setState(PersistentState::kLedgerUpgrades, "");
         mRebuildInMemoryState = true;
     }
@@ -399,15 +401,17 @@ uint32_t
 LedgerManagerImpl::getLastMaxTxSetSizeOps() const
 {
     auto n = mLastClosedLedger.header.maxTxSetSize;
-    return mLastClosedLedger.header.ledgerVersion >= 11 ? n
-                                                        : (n * MAX_OPS_PER_TX);
+    return protocolVersionStartsFrom(mLastClosedLedger.header.ledgerVersion,
+                                     ProtocolVersion::V_11)
+               ? n
+               : (n * MAX_OPS_PER_TX);
 }
 
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {
     auto& lh = mLastClosedLedger.header;
-    if (lh.ledgerVersion <= 8)
+    if (protocolVersionIsBefore(lh.ledgerVersion, ProtocolVersion::V_9))
         return (2 + ownerCount) * lh.baseReserve;
     else
         return (2LL + ownerCount) * int64_t(lh.baseReserve);
@@ -574,12 +578,12 @@ LedgerManagerImpl::emitNextMeta()
     auto streamWrite = mMetaStreamWriteTime.TimeScope();
     if (mMetaStream)
     {
-        mMetaStream->writeOne(*mNextMetaToEmit);
+        mMetaStream->writeOne(mNextMetaToEmit->getXDR());
         mMetaStream->flush();
     }
     if (mMetaDebugStream)
     {
-        mMetaDebugStream->writeOne(*mNextMetaToEmit);
+        mMetaDebugStream->writeOne(mNextMetaToEmit->getXDR());
     }
     mNextMetaToEmit.reset();
 }
@@ -613,7 +617,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     mLastClose = now;
     mLedgerAge.set_count(0);
 
-    std::shared_ptr<AbstractTxSetFrameForApply> txSet = ledgerData.getTxSet();
+    TxSetFrameConstPtr txSet = ledgerData.getTxSet();
 
     // If we do not support ledger version, we can't apply that ledger, fail!
     if (header.current().ledgerVersion >
@@ -661,12 +665,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // LedgerHeader, we optionally collect an even-more-fine-grained record of
     // the ledger entries modified by each tx during tx processing in a
     // LedgerCloseMeta, for streaming to attached clients (typically: horizon).
-    std::unique_ptr<LedgerCloseMeta> ledgerCloseMeta;
+    std::unique_ptr<LedgerCloseMetaFrame> ledgerCloseMeta;
     if (mMetaStream || mMetaDebugStream)
     {
         if (mNextMetaToEmit)
         {
-            releaseAssert(mNextMetaToEmit->v0().ledgerHeader.hash ==
+            releaseAssert(mNextMetaToEmit->ledgerHeader().hash ==
                           getLastClosedLedgerHeader().hash);
             emitNextMeta();
         }
@@ -674,24 +678,30 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // Write to a local variable rather than a member variable first: this
         // enables us to discard incomplete meta and retry, should anything in
         // this method throw.
-        ledgerCloseMeta = std::make_unique<LedgerCloseMeta>();
-        ledgerCloseMeta->v0().txProcessing.reserve(txSet->sizeTx());
-        txSet->toXDR(ledgerCloseMeta->v0().txSet);
+        ledgerCloseMeta = std::make_unique<LedgerCloseMetaFrame>(
+            header.current().ledgerVersion);
+        ledgerCloseMeta->txProcessing().reserve(txSet->sizeTx());
+        ledgerCloseMeta->populateTxSet(*txSet);
     }
 
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
     // sorted such that sequence numbers are respected
-    vector<TransactionFrameBasePtr> txs = ledgerData.getTxSet()->sortForApply();
+    std::vector<TransactionFrameBasePtr> const txs =
+        txSet->getTxsInApplyOrder();
 
     // first, prefetch source accounts for txset, then charge fees
     prefetchTxSourceIds(txs);
-    auto curBaseFee = txSet->getBaseFee(header.current());
-    processFeesSeqNums(txs, ltx, curBaseFee, ledgerCloseMeta);
+    processFeesSeqNums(txs, ltx, *txSet, ledgerCloseMeta);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta, curBaseFee);
+    applyTransactions(*txSet, txs, ltx, txResultSet, ledgerCloseMeta);
+    if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
+    {
+        storeTxSet(mApp.getDatabase(), ltx.loadHeader().current().ledgerSeq,
+                   *txSet);
+    }
 
     ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
@@ -726,7 +736,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             LedgerEntryChanges changes = ltxUpgrade.getChanges();
             if (ledgerCloseMeta)
             {
-                auto& up = ledgerCloseMeta->v0().upgradesProcessing;
+                auto& up = ledgerCloseMeta->upgradesProcessing();
                 up.emplace_back();
                 UpgradeEntryMeta& uem = up.back();
                 uem.upgrade = lupgrade;
@@ -763,7 +773,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (mMetaStream || mMetaDebugStream)
     {
         releaseAssert(ledgerCloseMeta);
-        ledgerCloseMeta->v0().ledgerHeader = mLastClosedLedger;
+        ledgerCloseMeta->ledgerHeader() = mLastClosedLedger;
 
         // At this point we've got a complete meta and we can store it to the
         // member variable: if we throw while committing below, we will at worst
@@ -817,7 +827,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.begin(),
             mApp.getConfig().OP_APPLY_SLEEP_TIME_WEIGHT_FOR_TESTING.end());
         std::chrono::microseconds sleepFor{0};
-        for (size_t i = 0; i < txSet->sizeOp(); i++)
+        auto txSetSizeOp = txSet->sizeOp();
+        for (size_t i = 0; i < txSetSizeOp; i++)
         {
             sleepFor +=
                 mApp.getConfig()
@@ -1028,27 +1039,63 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
     mLastClosedLedger.header = header;
 }
 
+static bool
+mergeOpInTx(std::vector<Operation> const& ops)
+{
+    for (auto const& op : ops)
+    {
+        if (op.body.type() == ACCOUNT_MERGE)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void
 LedgerManagerImpl::processFeesSeqNums(
-    std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
-    int64_t baseFee, std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
+    std::vector<TransactionFrameBasePtr> const& txs,
+    AbstractLedgerTxn& ltxOuter, TxSetFrame const& txSet,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneScoped;
-    CLOG_DEBUG(Ledger, "processing fees and sequence numbers with base fee {}",
-               baseFee);
+    CLOG_DEBUG(Ledger, "processing fees and sequence numbers");
     int index = 0;
     try
     {
         LedgerTxn ltx(ltxOuter);
-        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+        auto header = ltx.loadHeader().current();
+        auto ledgerSeq = header.ledgerSeq;
+        std::map<AccountID, SequenceNumber> accToMaxSeq;
+
+        bool mergeSeen = false;
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx, baseFee);
+            tx->processFeeSeqNum(ltxTx, txSet.getTxBaseFee(tx, header));
+
+            if (protocolVersionStartsFrom(
+                    ltxTx.loadHeader().current().ledgerVersion,
+                    ProtocolVersion::V_19))
+            {
+                auto res =
+                    accToMaxSeq.emplace(tx->getSourceID(), tx->getSeqNum());
+                if (!res.second)
+                {
+                    res.first->second =
+                        std::max(res.first->second, tx->getSeqNum());
+                }
+
+                if (mergeOpInTx(tx->getRawOperations()))
+                {
+                    mergeSeen = true;
+                }
+            }
+
             LedgerEntryChanges changes = ltxTx.getChanges();
             if (ledgerCloseMeta)
             {
-                auto& tp = ledgerCloseMeta->v0().txProcessing;
+                auto& tp = ledgerCloseMeta->txProcessing();
                 tp.emplace_back();
                 tp.back().feeProcessing = changes;
             }
@@ -1066,6 +1113,35 @@ LedgerManagerImpl::processFeesSeqNums(
             }
             ltxTx.commit();
         }
+
+        if (protocolVersionStartsFrom(ltx.loadHeader().current().ledgerVersion,
+                                      ProtocolVersion::V_19) &&
+            mergeSeen)
+        {
+            for (const auto& [accountID, seqNum] : accToMaxSeq)
+            {
+                auto ltxe = loadMaxSeqNumToApply(ltx, accountID);
+                if (!ltxe)
+                {
+                    InternalLedgerEntry gle(
+                        InternalLedgerEntryType::MAX_SEQ_NUM_TO_APPLY);
+                    gle.maxSeqNumToApplyEntry().sourceAccount = accountID;
+                    gle.maxSeqNumToApplyEntry().maxSeqNum = seqNum;
+
+                    auto res = ltx.create(gle);
+                    if (!res)
+                    {
+                        throw std::runtime_error("create failed");
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error(
+                        "found unexpected MAX_SEQ_NUM_TO_APPLY");
+                }
+            }
+        }
+
         ltx.commit();
     }
     catch (std::exception& e)
@@ -1079,7 +1155,7 @@ LedgerManagerImpl::processFeesSeqNums(
 
 void
 LedgerManagerImpl::prefetchTxSourceIds(
-    std::vector<TransactionFrameBasePtr>& txs)
+    std::vector<TransactionFrameBasePtr> const& txs)
 {
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
@@ -1095,7 +1171,7 @@ LedgerManagerImpl::prefetchTxSourceIds(
 
 void
 LedgerManagerImpl::prefetchTransactionData(
-    std::vector<TransactionFrameBasePtr>& txs)
+    std::vector<TransactionFrameBasePtr> const& txs)
 {
     ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
@@ -1111,30 +1187,25 @@ LedgerManagerImpl::prefetchTransactionData(
 
 void
 LedgerManagerImpl::applyTransactions(
-    std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
-    TransactionResultSet& txResultSet,
-    std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta, int64 curBaseFee)
+    TxSetFrame const& txSet, std::vector<TransactionFrameBasePtr> const& txs,
+    AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
+    std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
     int index = 0;
 
     // Record counts
     auto numTxs = txs.size();
-    size_t numOps = 0;
+    auto numOps = txSet.sizeOp();
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
         TracyPlot("ledger.transaction.count", static_cast<int64_t>(numTxs));
-        numOps =
-            std::accumulate(txs.begin(), txs.end(), size_t(0),
-                            [](size_t s, TransactionFrameBasePtr const& v) {
-                                return s + v->getNumOperations();
-                            });
+
         mOperationCount.Update(static_cast<int64_t>(numOps));
         TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
-        CLOG_INFO(Tx, "applying ledger {} (txs:{}, ops:{}, base_fee:{})",
-                  ltx.loadHeader().current().ledgerSeq, numTxs, numOps,
-                  curBaseFee);
+        CLOG_INFO(Tx, "applying ledger {} ({})",
+                  ltx.loadHeader().current().ledgerSeq, txSet.summary());
     }
 
     prefetchTransactionData(txs);
@@ -1163,7 +1234,7 @@ LedgerManagerImpl::applyTransactions(
         if (ledgerCloseMeta)
         {
             TransactionResultMeta& trm =
-                ledgerCloseMeta->v0().txProcessing.at(index);
+                ledgerCloseMeta->txProcessing().at(index);
             trm.txApplyProcessing = tm;
             trm.result = results;
         }

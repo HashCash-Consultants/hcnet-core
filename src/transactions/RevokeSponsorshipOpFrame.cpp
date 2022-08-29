@@ -8,6 +8,8 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/ProtocolVersion.h"
+#include "xdr/Hcnet-ledger-entries.h"
 
 namespace hcnet
 {
@@ -23,7 +25,8 @@ RevokeSponsorshipOpFrame::RevokeSponsorshipOpFrame(Operation const& op,
 bool
 RevokeSponsorshipOpFrame::isOpSupported(LedgerHeader const& header) const
 {
-    return header.ledgerVersion >= 14;
+    return protocolVersionStartsFrom(header.ledgerVersion,
+                                     ProtocolVersion::V_14);
 }
 
 static AccountID const&
@@ -419,7 +422,7 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case DATA:
         {
             auto const& name = lk.data().dataName;
-            if ((name.size() < 1) || !isString32Valid(name))
+            if ((name.size() < 1) || !isStringValid(name))
             {
                 innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
                 return false;
@@ -429,6 +432,10 @@ RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
         case CLAIMABLE_BALANCE:
             break;
         case LIQUIDITY_POOL:
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+        case CONTRACT_DATA:
+        case CONFIG_SETTING:
+#endif
             innerResult().code(REVOKE_SPONSORSHIP_MALFORMED);
             return false;
         default:

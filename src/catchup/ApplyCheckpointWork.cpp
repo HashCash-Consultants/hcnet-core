@@ -98,7 +98,7 @@ ApplyCheckpointWork::openInputFiles()
     mFilesOpen = true;
 }
 
-TxSetFramePtr
+TxSetFrameConstPtr
 ApplyCheckpointWork::getCurrentTxSet()
 {
     ZoneScoped;
@@ -124,13 +124,22 @@ ApplyCheckpointWork::getCurrentTxSet()
         {
             releaseAssert(mTxHistoryEntry.ledgerSeq == seq);
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
-            return std::make_shared<TxSetFrame>(mApp.getNetworkID(),
+            if (mTxHistoryEntry.ext.v() == 0)
+            {
+                return TxSetFrame::makeFromWire(mApp.getNetworkID(),
                                                 mTxHistoryEntry.txSet);
+            }
+            else
+            {
+                return TxSetFrame::makeFromWire(
+                    mApp.getNetworkID(),
+                    mTxHistoryEntry.ext.generalizedTxSet());
+            }
         }
     } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
 
     CLOG_DEBUG(History, "Using empty txset for ledger {}", seq);
-    return std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+    return TxSetFrame::makeEmpty(lm.getLastClosedLedgerHeader());
 }
 
 std::shared_ptr<LedgerCloseData>
@@ -232,10 +241,10 @@ ApplyCheckpointWork::getNextLedgerCloseData()
         auto& bm = mApp.getBucketManager();
         CLOG_INFO(History,
                   "Forcing bucket manager to use version {} with hash {}",
-                  Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                  mApp.getConfig().LEDGER_PROTOCOL_VERSION,
                   hexAbbrev(header.bucketListHash));
         bm.setNextCloseVersionAndHashForTesting(
-            Config::CURRENT_LEDGER_PROTOCOL_VERSION, header.bucketListHash);
+            mApp.getConfig().LEDGER_PROTOCOL_VERSION, header.bucketListHash);
     }
 #endif
 

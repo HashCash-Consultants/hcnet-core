@@ -5,10 +5,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/NonCopyable.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Hcnet-ledger-entries.h"
 #include "xdr/Hcnet-ledger.h"
 #include "xdr/Hcnet-transaction.h"
+
 #include <algorithm>
+#include <optional>
 
 namespace hcnet
 {
@@ -21,6 +24,7 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 class InternalLedgerKey;
+class TransactionFrameBase;
 struct ClaimAtom;
 struct LedgerHeader;
 struct LedgerKey;
@@ -39,6 +43,7 @@ findSignerByKey(IterType begin, IterType end, SignerKey const& key)
 
 AccountEntryExtensionV1& prepareAccountEntryExtensionV1(AccountEntry& ae);
 AccountEntryExtensionV2& prepareAccountEntryExtensionV2(AccountEntry& ae);
+AccountEntryExtensionV3& prepareAccountEntryExtensionV3(AccountEntry& ae);
 TrustLineEntry::_ext_t::_v1_t&
 prepareTrustLineEntryExtensionV1(TrustLineEntry& tl);
 TrustLineEntryExtensionV2& prepareTrustLineEntryExtensionV2(TrustLineEntry& tl);
@@ -46,6 +51,8 @@ LedgerEntryExtensionV1& prepareLedgerEntryExtensionV1(LedgerEntry& le);
 void setLedgerHeaderFlag(LedgerHeader& lh, uint32_t flags);
 
 AccountEntryExtensionV2& getAccountEntryExtensionV2(AccountEntry& ae);
+AccountEntryExtensionV3 const&
+getAccountEntryExtensionV3(AccountEntry const& ae);
 TrustLineEntryExtensionV2& getTrustLineEntryExtensionV2(TrustLineEntry& le);
 LedgerEntryExtensionV1& getLedgerEntryExtensionV1(LedgerEntry& le);
 
@@ -58,10 +65,16 @@ LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
 LedgerKey liquidityPoolKey(PoolID const& poolID);
 LedgerKey poolShareTrustLineKey(AccountID const& accountID,
                                 PoolID const& poolID);
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerKey configSettingKey(ConfigSettingID const& configSettingID);
+LedgerKey contractDataKey(Hash const& contractID, SCVal const& dataKey);
+#endif
 InternalLedgerKey sponsorshipKey(AccountID const& sponsoredID);
 InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
+InternalLedgerKey maxSeqNumToApplyKey(AccountID const& sourceAccount);
 
-uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
+ProtocolVersion const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS =
+    ProtocolVersion::V_11;
 
 uint32_t getAccountSubEntryLimit();
 size_t getMaxOffersToCross();
@@ -119,11 +132,19 @@ LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
 LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
                                       AccountID const& sponsoringID);
 
+LedgerTxnEntry loadMaxSeqNumToApply(AbstractLedgerTxn& ltx,
+                                    AccountID const& sourceAccount);
+
 LedgerTxnEntry loadPoolShareTrustLine(AbstractLedgerTxn& ltx,
                                       AccountID const& accountID,
                                       PoolID const& poolID);
 
 LedgerTxnEntry loadLiquidityPool(AbstractLedgerTxn& ltx, PoolID const& poolID);
+
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+LedgerTxnEntry loadContractData(AbstractLedgerTxn& ltx, Hash const& contractID,
+                                SCVal const& dataKey);
+#endif
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
@@ -235,6 +256,7 @@ bool hasMuxedAccount(TransactionEnvelope const& e);
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
+bool hasAccountEntryExtV3(AccountEntry const& ae);
 bool hasTrustLineEntryExtV2(TrustLineEntry const& tl);
 
 Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
@@ -269,4 +291,10 @@ ChangeTrustAsset assetToChangeTrustAsset(Asset const& asset);
 
 int64_t getPoolWithdrawalAmount(int64_t amountPoolShares,
                                 int64_t totalPoolShares, int64_t reserve);
+
+void maybeUpdateAccountOnLedgerSeqUpdate(LedgerTxnHeader const& header,
+                                         LedgerTxnEntry& account);
+
+int64_t getMinFee(TransactionFrameBase const& tx, LedgerHeader const& header,
+                  std::optional<int64_t> baseFee = std::nullopt);
 }

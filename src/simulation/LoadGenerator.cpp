@@ -493,11 +493,7 @@ LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
 {
     auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
 
-    // Mod with total number of accounts to ensure account exists
-    uint64_t destAccountId =
-        (sourceAccountId + sourceAccount->getLastSequenceNumber()) %
-            numAccounts +
-        offset;
+    auto destAccountId = rand_uniform<uint64_t>(0, numAccounts - 1) + offset;
 
     auto destAccount = findAccount(destAccountId, ledgerNum);
 
@@ -749,7 +745,7 @@ LoadGenerator::execute(TransactionFramePtr& txf, LoadGenMode mode,
     HcnetMessage msg(txf->toHcnetMessage());
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
 
-    auto status = mApp.getHerder().recvTransaction(txf);
+    auto status = mApp.getHerder().recvTransaction(txf, true);
     if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         CLOG_INFO(LoadGen, "tx rejected '{}': {} ===> {}",

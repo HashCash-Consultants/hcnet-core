@@ -33,14 +33,9 @@ jobs:
         with:
           path: |
             /home/runner/.ccache
-          # we do not include ${{ matrix.protocol }} in this cache key. That flag ultimately causes
-          # an altered -D define, which _does_ cause a ccache direct-mode miss, but only one file
-          # has any difference when preprocessed, so ccache still gets a fallback cpp-mode hit. The
-          # one file that does vary (that compiles-in the protocol version number) is small enough
-          # that we can tolerate a miss and/or hold both versions of it in cache.
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-
+            ${{ runner.os }}-${{ matrix.toolchain }}-${{ matrix.protocol }}-cacheID-
       - uses: actions/checkout@v2
         with:
            fetch-depth: 200
@@ -51,7 +46,7 @@ jobs:
           sudo apt-get -y install --no-install-recommends apt-utils dialog git iproute2 procps lsb-release
       - name: install tool chain
         run: |
-          sudo apt-get -y install libstdc++-8-dev clang-format-10 ccache
+          sudo apt-get -y install libstdc++-8-dev clang-format-10 ccache cargo rustc
           if test "${{ matrix.toolchain }}" = "gcc" ; then
             sudo apt-get -y install cpp-8 gcc-8 g++-8
           else

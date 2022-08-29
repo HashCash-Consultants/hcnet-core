@@ -17,6 +17,7 @@
 #include "scp/Slot.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/ProtocolVersion.h"
 #include "xdr/Hcnet-SCP.h"
 #include "xdr/Hcnet-ledger-entries.h"
 #include "xdr/Hcnet-ledger.h"
@@ -31,6 +32,8 @@
 
 namespace hcnet
 {
+
+uint32_t const TXSETVALID_CACHE_SIZE = 1000;
 
 Hash
 HerderSCPDriver::getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const
@@ -78,6 +81,7 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mPrepareTimeout{mApp.getMetrics().NewHistogram(
           {"scp", "timeout", "prepare"})}
     , mLedgerSeqNominating(0)
+    , mTxSetValidCache(TXSETVALID_CACHE_SIZE)
 {
 }
 
@@ -105,7 +109,7 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
     HerderImpl& mHerder;
 
     SCPQuorumSetPtr mQSet;
-    std::vector<TxSetFramePtr> mTxSets;
+    std::vector<TxSetFrameConstPtr> mTxSets;
 
   public:
     explicit SCPHerderEnvelopeWrapper(SCPEnvelope const& e, HerderImpl& herder)
@@ -300,7 +304,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, HcnetValue const& b,
     }
 
     Hash const& txSetHash = b.txSetHash;
-    TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    TxSetFrameConstPtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
@@ -313,7 +317,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, HcnetValue const& b,
 
         res = SCPDriver::kInvalidValue;
     }
-    else if (!txSet->checkValid(mApp, closeTimeOffset, closeTimeOffset))
+    else if (!checkAndCacheTxSetValid(txSet, closeTimeOffset))
     {
         CLOG_DEBUG(Herder,
                    "HerderSCPDriver::validateValue i: {} invalid txSet {}",
@@ -548,25 +552,38 @@ compareTxSets(TxSetFrameConstPtr l, TxSetFrameConstPtr r, Hash const& lh,
     }
     auto lSize = l->size(header);
     auto rSize = r->size(header);
-    if (lSize < rSize)
+    if (lSize != rSize)
     {
-        return true;
+        return lSize < rSize;
     }
-    else if (lSize > rSize)
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
     {
-        return false;
+        auto lBids = l->getTotalBids();
+        auto rBids = r->getTotalBids();
+        if (lBids != rBids)
+        {
+            return lBids < rBids;
+        }
     }
-    if (header.ledgerVersion >= 11)
+    if (protocolVersionStartsFrom(header.ledgerVersion, ProtocolVersion::V_11))
     {
         auto lFee = l->getTotalFees(header);
         auto rFee = r->getTotalFees(header);
-        if (lFee < rFee)
+        if (lFee != rFee)
         {
-            return true;
+            return lFee < rFee;
         }
-        else if (lFee > rFee)
+    }
+    if (protocolVersionStartsFrom(header.ledgerVersion,
+                                  GENERALIZED_TX_SET_PROTOCOL_VERSION))
+    {
+        auto lEncodedSize = l->encodedSize();
+        auto rEncodedSize = r->encodedSize();
+        if (lEncodedSize != rEncodedSize)
         {
-            return false;
+            // Look for the smallest encoded size.
+            return lEncodedSize > rEncodedSize;
         }
     }
     return lessThanXored(lh, rh, s);
@@ -789,7 +806,7 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
 
 void
 HerderSCPDriver::nominate(uint64_t slotIndex, HcnetValue const& value,
-                          TxSetFramePtr proposedSet,
+                          TxSetFrameConstPtr proposedSet,
                           HcnetValue const& previousValue)
 {
     ZoneScoped;
@@ -800,7 +817,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, HcnetValue const& value,
     CLOG_DEBUG(Herder,
                "HerderSCPDriver::triggerNextLedger txSet.size: {} "
                "previousLedgerHash: {} value: {} slot: {}",
-               proposedSet->mTransactions.size(),
+               proposedSet->sizeTx(),
                hexAbbrev(proposedSet->previousLedgerHash()),
                hexAbbrev(valueHash), slotIndex);
 
@@ -1034,6 +1051,23 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     }
 
     // Compute prepare time
+    // The 'threshold' here acts as a filter to coarsely exclude from
+    // metric-recording events that occur "too close together". This
+    // happens when the current node is not actually keeping up with
+    // consensus (i.e. not participating meaningfully): it receives bursts
+    // of SCP messages that traverse all SCP states "instantly". If we
+    // record those events it gives the misleading impression of the node
+    // going "super fast", which is not really accurate: the node is
+    // actually going so slow nobody's even listening to it anymore, it's
+    // just being dragged along with its quorum.
+    //
+    // Unfortunately by excluding these "too fast" events we produce a
+    // different distortion in that case: we record so few events that the
+    // node looks like it's "going fast" from mere _sparsity of data_, the
+    // summary metric only recording a handful of samples. What you want
+    // to look at -- any time you're examining SCP phase-timing data -- is
+    // the combination of this timer _and_ the lag timers that say whether
+    // the node is so lagged that nobody's listening to it.
     if (SCPTiming.mPrepareStart)
     {
         recordLogTiming(*SCPTiming.mPrepareStart, externalizeStart,
@@ -1066,7 +1100,7 @@ class SCPHerderValueWrapper : public ValueWrapper
 {
     HerderImpl& mHerder;
 
-    TxSetFramePtr mTxSet;
+    TxSetFrameConstPtr mTxSet;
 
   public:
     explicit SCPHerderValueWrapper(HcnetValue const& sv, Value const& value,
@@ -1104,6 +1138,38 @@ HerderSCPDriver::wrapHcnetValue(HcnetValue const& sv)
 {
     auto val = xdr::xdr_to_opaque(sv);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
+    return res;
+}
+
+bool
+HerderSCPDriver::checkAndCacheTxSetValid(TxSetFrameConstPtr txSet,
+                                         uint64_t closeTimeOffset) const
+{
+    auto key = TxSetValidityKey{
+        mApp.getLedgerManager().getLastClosedLedgerHeader().hash,
+        txSet->getContentsHash(), closeTimeOffset, closeTimeOffset};
+
+    bool* pRes = mTxSetValidCache.maybeGet(key);
+    if (pRes == nullptr)
+    {
+        bool res = txSet->checkValid(mApp, closeTimeOffset, closeTimeOffset);
+        mTxSetValidCache.put(key, res);
+        return res;
+    }
+    else
+    {
+        return *pRes;
+    }
+}
+size_t
+HerderSCPDriver::TxSetValidityKeyHash::operator()(
+    TxSetValidityKey const& key) const
+{
+
+    size_t res = std::hash<Hash>()(std::get<0>(key));
+    hashMix(res, std::hash<Hash>()(std::get<1>(key)));
+    hashMix(res, std::get<2>(key));
+    hashMix(res, std::get<3>(key));
     return res;
 }
 }

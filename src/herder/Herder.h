@@ -65,6 +65,8 @@ class Herder
     // this is to help recover potential missing SCP messages for other nodes
     static uint32 const SCP_EXTRA_LOOKBACK_LEDGERS;
 
+    static std::chrono::minutes const TX_SET_GC_DELAY;
+
     enum State
     {
         // Starting up, no state is known
@@ -114,13 +116,13 @@ class Herder
 
     virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;
-    virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
+    virtual bool recvTxSet(Hash const& hash, TxSetFrameConstPtr txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionQueue::AddResult
-    recvTransaction(TransactionFrameBasePtr tx) = 0;
+    recvTransaction(TransactionFrameBasePtr tx, bool submittedFromSelf) = 0;
     virtual void peerDoesntHave(hcnet::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;
-    virtual TxSetFramePtr getTxSet(Hash const& hash) = 0;
+    virtual TxSetFrameConstPtr getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.
@@ -130,10 +132,10 @@ class Herder
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                            const SCPQuorumSet& qset,
-                                           TxSetFrame txset) = 0;
+                                           TxSetFrameConstPtr txset) = 0;
 
     virtual void
-    externalizeValue(std::shared_ptr<TxSetFrame> txSet, uint32_t ledgerSeq,
+    externalizeValue(TxSetFrameConstPtr txSet, uint32_t ledgerSeq,
                      uint64_t closeTime,
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
@@ -147,6 +149,10 @@ class Herder
 
     // return the smallest ledger number we need messages for when asking peers
     virtual uint32 getMinLedgerSeqToAskPeers() const = 0;
+    virtual uint32 getMinLedgerSeqToRemember() const = 0;
+
+    virtual bool isNewerNominationOrBallotSt(SCPStatement const& oldSt,
+                                             SCPStatement const& newSt) = 0;
 
     // Return the maximum sequence number for any tx (or 0 if none) from a given
     // sender in the pending or recent tx sets.

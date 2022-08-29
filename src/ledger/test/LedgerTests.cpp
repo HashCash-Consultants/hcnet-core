@@ -20,8 +20,7 @@ TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
 
     auto applyEmptyLedger = [&]() {
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
-
+        auto txSet = TxSetFrame::makeEmpty(lcl);
         HcnetValue sv = app->getHerder().makeHcnetValue(
             txSet->getContentsHash(), 1, emptyUpgradeSteps,
             app->getConfig().NODE_SEED);

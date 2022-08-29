@@ -69,8 +69,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         app->start();
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        auto const& lastHash = lcl.hash;
-        TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
+        auto txSet = TxSetFrame::makeEmpty(lcl);
 
         // close this ledger
         HcnetValue sv = app->getHerder().makeHcnetValue(
@@ -95,7 +94,7 @@ TEST_CASE("ledgerheader", "[ledger]")
     }
 }
 
-TEST_CASE("base reserve", "[ledger]")
+TEST_CASE_VERSIONS("base reserve", "[ledger]")
 {
     Config const& cfg = getTestConfig();
 

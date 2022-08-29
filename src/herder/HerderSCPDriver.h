@@ -6,8 +6,10 @@
 
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "herder/TxSetUtils.h"
 #include "medida/timer.h"
 #include "scp/SCPDriver.h"
+#include "util/RandomEvictionCache.h"
 #include "xdr/Hcnet-ledger.h"
 #include <optional>
 
@@ -85,7 +87,8 @@ class HerderSCPDriver : public SCPDriver
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
     void nominate(uint64_t slotIndex, HcnetValue const& value,
-                  TxSetFramePtr proposedSet, HcnetValue const& previousValue);
+                  TxSetFrameConstPtr proposedSet,
+                  HcnetValue const& previousValue);
 
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
@@ -189,6 +192,18 @@ class HerderSCPDriver : public SCPDriver
     // timers used by SCP
     // indexed by slotIndex, timerID
     std::map<uint64_t, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;
+    // For caching TxSet validity. Consist of {lcl.hash, txSetHash,
+    // lowerBoundCloseTimeOffset, upperBoundCloseTimeOffset}
+    using TxSetValidityKey = std::tuple<Hash, Hash, uint64_t, uint64_t>;
+
+    class TxSetValidityKeyHash
+    {
+      public:
+        size_t operator()(TxSetValidityKey const& key) const;
+    };
+    // validity of txSet
+    mutable RandomEvictionCache<TxSetValidityKey, bool, TxSetValidityKeyHash>
+        mTxSetValidCache;
 
     SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
                                                    HcnetValue const& sv,
@@ -206,5 +221,8 @@ class HerderSCPDriver : public SCPDriver
                          std::string const& logStr,
                          std::chrono::nanoseconds threshold,
                          uint64_t slotIndex);
+
+    bool checkAndCacheTxSetValid(TxSetFrameConstPtr TxSet,
+                                 uint64_t closeTimeOffset) const;
 };
 }
