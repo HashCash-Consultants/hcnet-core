@@ -126,4 +126,6 @@ Here are sample steps to achieve this:
 Now your core build is completed 
 
 
-Now you setup next step aurora....
+Now you setup next step aurora.... 
+## 🔗 Aurora Link
+[![Aurora](https://img.shields.io/badge/Go-000?style=for-the-badge&logo=ko-fi&logoColor=white)](https://github.com/HashCash-Consultants/go.git/)
