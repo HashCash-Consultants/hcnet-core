@@ -24,18 +24,9 @@ struct PersistedSCPStateV0
 	StoredTransactionSet txSets<>;
 };
 
-struct PersistedSCPStateV1
-{
-	// Tx sets are saved separately
-	SCPEnvelope scpEnvelopes<>;
-	SCPQuorumSet quorumSets<>;
-};
-
 union PersistedSCPState switch (int v)
 {
 case 0:
 	PersistedSCPStateV0 v0;
-case 1:
-	PersistedSCPStateV1 v1;
 };
 }

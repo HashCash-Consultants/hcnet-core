@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/HistoryArchive.h"
-#include "ledger/LedgerRange.h"
 #include "main/Application.h"
 #include <optional>
 
@@ -51,8 +50,4 @@ bool applyBucketsForLCL(Application& app,
 int publish(Application::pointer app);
 std::string minimalDBForInMemoryMode(Config const& cfg);
 bool canRebuildInMemoryLedgerFromBuckets(uint32_t startAtLedger, uint32_t lcl);
-void setAuthenticatedLedgerHashPair(Application::pointer app,
-                                    LedgerNumHashPair& authPair,
-                                    uint32_t startLedger,
-                                    std::string startHash);
 }

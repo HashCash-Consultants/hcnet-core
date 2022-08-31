@@ -362,20 +362,6 @@ maybeEnableInMemoryMode(Config& config, bool inMemory, uint32_t startAtLedger,
 }
 
 clara::Opt
-ledgerHashParser(std::string& ledgerHash)
-{
-    return clara::Opt{ledgerHash, "HASH"}["--trusted-hash"](
-        "Hash of the ledger to catchup to");
-}
-
-clara::Opt
-forceUntrustedCatchup(bool& force)
-{
-    return clara::Opt{force}["--force-untrusted-catchup"](
-        "force unverified catchup");
-}
-
-clara::Opt
 inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
@@ -485,8 +471,7 @@ runWithHelp(CommandLineArgs const& args,
 }
 
 CatchupConfiguration
-parseCatchup(std::string const& catchup, std::string const& hash,
-             bool extraValidation)
+parseCatchup(std::string const& catchup, bool extraValidation)
 {
     auto static errorMessage =
         "catchup value should be passed as <DESTINATION-LEDGER/LEDGER-COUNT>, "
@@ -504,18 +489,8 @@ parseCatchup(std::string const& catchup, std::string const& hash,
         auto mode = extraValidation
                         ? CatchupConfiguration::Mode::OFFLINE_COMPLETE
                         : CatchupConfiguration::Mode::OFFLINE_BASIC;
-        auto ledger = parseLedger(catchup.substr(0, separatorIndex));
-        auto count = parseLedgerCount(catchup.substr(separatorIndex + 1));
-        if (hash.empty())
-        {
-            return CatchupConfiguration(ledger, count, mode);
-        }
-        else
-        {
-            return CatchupConfiguration(
-                {ledger, std::make_optional<Hash>(hexToBin256(hash))}, count,
-                mode);
-        }
+        return {parseLedger(catchup.substr(0, separatorIndex)),
+                parseLedgerCount(catchup.substr(separatorIndex + 1)), mode};
     }
     catch (std::exception&)
     {
@@ -721,14 +696,14 @@ runCatchup(CommandLineArgs const& args)
     bool completeValidation = false;
     bool inMemory = false;
     bool forceBack = false;
-    bool forceUntrusted = false;
-    std::string hash;
+    uint32_t startAtLedger = 0;
+    std::string startAtHash;
     std::string stream;
 
     auto validateCatchupString = [&] {
         try
         {
-            parseCatchup(catchupString, hash, completeValidation);
+            parseCatchup(catchupString, completeValidation);
             return std::string{};
         }
         catch (std::runtime_error& e)
@@ -781,7 +756,7 @@ runCatchup(CommandLineArgs const& args)
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation), inMemoryParser(inMemory),
-         ledgerHashParser(hash), forceUntrustedCatchup(forceUntrusted),
+         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash),
          metadataOutputStreamParser(stream), forceBackParser(forceBack)},
         [&] {
             auto config = configOption.getConfig();
@@ -802,9 +777,8 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
             }
 
-            // --start-at-ledger and --start-at-hash aren't allowed in catchup,
-            // so pass defaults values
-            maybeEnableInMemoryMode(config, inMemory, 0, "",
+            maybeEnableInMemoryMode(config, inMemory, startAtLedger,
+                                    startAtHash,
                                     /* persistMinimalData */ false);
             maybeSetMetadataOutputStream(config, stream);
 
@@ -820,15 +794,7 @@ runCatchup(CommandLineArgs const& args)
                 }
 
                 CatchupConfiguration cc =
-                    parseCatchup(catchupString, hash, completeValidation);
-
-                if (!trustedCheckpointHashesFile.empty() && !hash.empty())
-                {
-                    throw std::runtime_error(
-                        "Either --trusted-checkpoint-hashes or --trusted-hash "
-                        "should be specified, but not both");
-                }
-
+                    parseCatchup(catchupString, completeValidation);
                 if (!trustedCheckpointHashesFile.empty())
                 {
                     auto const& hm = app->getHistoryManager();
@@ -896,15 +862,6 @@ runCatchup(CommandLineArgs const& args)
                     app->resetLedgerState();
                     lm.startNewLedger();
                 }
-                else if (hash.empty() && !forceUntrusted)
-                {
-                    CLOG_WARNING(
-                        History,
-                        "Unsafe command: use --trusted-checkpoint-hashes or "
-                        "--trusted-hash to ensure catchup integrity. If you "
-                        "want to run untrusted catchup, use "
-                        "--force-untrusted-catchup.");
-                }
 
                 Json::Value catchupInfo;
                 result = catchup(app, cc, catchupInfo, archivePtr);
@@ -954,16 +911,44 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
 
             auto app = Application::create(clock, cfg, false);
             app->start();
-
+            auto const& lm = app->getLedgerManager();
+            auto const& hm = app->getHistoryManager();
             auto& io = clock.getIOContext();
             asio::io_context::work mainWork(io);
             LedgerNumHashPair authPair;
+            auto tryCheckpoint = [&](uint32_t seq, Hash h) {
+                if (hm.isLastLedgerInCheckpoint(seq))
+                {
+                    LOG_INFO(
+                        DEFAULT_LOG,
+                        "Found authenticated checkpoint hash {} for ledger {}",
+                        hexAbbrev(h), seq);
+                    authPair.first = seq;
+                    authPair.second = std::make_optional<Hash>(h);
+                }
+                else if (authPair.first != seq)
+                {
+                    authPair.first = seq;
+                    LOG_INFO(DEFAULT_LOG,
+                             "Ledger {} is not a checkpoint boundary, waiting.",
+                             seq);
+                }
+            };
+
+            if (startLedger != 0 && !startHash.empty())
+            {
+                Hash h = hexToBin256(startHash);
+                tryCheckpoint(startLedger, h);
+            }
 
             while (!(io.stopped() || authPair.second))
             {
                 clock.crank();
-                setAuthenticatedLedgerHashPair(app, authPair, startLedger,
-                                               startHash);
+                if (lm.isSynced())
+                {
+                    auto const& lhe = lm.getLastClosedLedgerHeader();
+                    tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
+                }
             }
             if (authPair.second)
             {

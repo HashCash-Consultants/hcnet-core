@@ -10,8 +10,8 @@ These are instructions for building hcnet-core from source.
 
 For a potentially quicker set up, the following projects could be good alternatives:
 
-* hcnet-core in a [docker container](https://github.com/hcnet/docker-hcnet-core)
-* hcnet-core and [horizon](https://github.com/hcnet/go/tree/master/services/horizon) in a [docker container](https://github.com/hcnet/docker-hcnet-core-horizon)
+
+* hcnet-core and [horizon](https://github.com/hcnet/go/tree/master/services/horizon) 
 * pre-compiled [packages](https://github.com/hcnet/packages)
 
 ## Picking a version to run
@@ -98,70 +98,10 @@ In order to install the llvm (clang) toolchain, you may have to follow instructi
     sudo apt-get install clang-format-10
 
 
-### OS X
-When building on OSX, here's some dependencies you'll need:
-- Install xcode
-- Install [homebrew](https://brew.sh)
-- `brew install libsodium`
-- `brew install libtool`
-- `brew install autoconf`
-- `brew install automake`
-- `brew install pkg-config`
-- `brew install libpq` (required for postgres)
-- `brew install openssl` (required for postgres)
-- `brew install parallel` (required for running tests)
-- `brew install ccache` (required for enabling ccache)
-
-You'll also need to configure pkg-config by adding the following to your shell (`.zshenv` or `.zshrc`):
-```zsh
-export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/libpq/lib/pkgconfig"
-export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:$(brew --prefix)/opt/openssl@3/lib/pkgconfig"
-```
-
-
 ## Basic Installation
 
 - `git clone https://github.com/HashCash-Consultants/hcnet-core.git --branch v19.3.0`
-- `cd hcnet-core`
-- `git submodule init`
-- `git submodule update`
-- Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-10 ./configure` or `CXX=g++-8 ./configure` or similar, depending on your compiler.)*
-- Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
-- Type `make check` to run tests.
-- Type `make install` to install.
 
-
-Postgres database need to install to store core data
-## Install postgres database
-```
-sudo apt-get update
-sudo apt-get install postgresql postgresql-contrib
-```
-- Postgres user for HCNet core
-```
-sudo -s
-su – postgres
-createuser <username> --pwprompt
-Enter password for new role: <Enter password>
-Enter it again: <Enter the pwd again>
-```
-Note: This is required for DB url that need to be maintained in HcNet-core.cfg and if you want to set up 3 nodes, you need to create 3 users.
-- After creating the user, you need to add them. So exit from postgres and login as root user.
-```
-exit
-adduser <username>;
-```
-To verify if user is created, execute following commands
-```
-su - postgres
-psql
-\du
-```
-After that create a database. If you have five cores, then create five databases.
-```
-CREATE DATABASE <DB_NAME> OWNER <user created username>;
-```
 
 ## Building with clang and libc++
 
@@ -180,43 +120,10 @@ Here are sample steps to achieve this:
     export CXX=clang++-10
     export CFLAGS="-O3 -g1 -fno-omit-frame-pointer"
     export CXXFLAGS="$CFLAGS -stdlib=libc++"
-    git clone https://github.com/hcnet/hcnet-core.git
-    cd hcnet-core/
+
     ./autogen.sh && ./configure && make -j6
 
-## Building with Tracing
-
-Configuring with `--enable-tracy` will build and embed the client component of the [Tracy](https://github.com/wolfpld/tracy) high-resolution tracing system in the `hcnet-core` binary.
-
-The tracing client will activate automatically when hcnet-core is running, and will listen for connections from Tracy servers (a command-line capture utility, or a cross-platform GUI).
-
-The Tracy server components can also be compiled by configuring with `--enable-tracy-gui` or `--enable-tracy-capture`.
-
-The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their headers, and on linux or BSD the `GTK-2.0` libraries and headers. On Windows and MacOS, native toolkits are used instead.
+Now your core build is completed 
 
 
-    # On Ubuntu
-    $ sudo apt-get install libcapstone-dev libfreetype6-dev libglfw3-dev libgtk2.0-dev
-
-    # On MacOS
-    $ brew install capstone freetype2 glfw
-
-    
-## Building with Rust
-
-Configuring with `--enable-next-protocol-version-unsafe-for-production` will build and embed components written in the [Rust](https://rust-lang.org) programming language. These components are currently only enabled when building the "next" protocol, not the "current" one.
-
-Building the Rust components requires the `cargo` package manager and build system, as well as the `rustc` compiler, both version 1.57 or later.
-Currently we recommend using the system packages provided on Ubuntu, and the rust project's `rustup` installer on other systems.
-
-    # On Ubuntu
-    $ sudo apt-get install cargo
-
-    # On MacOS
-    $ brew install rustup-init
-    $ rustup-init
-
-To use an IDE with `rust-analyzer`, additional packages are required on Ubuntu:
-
-    # On Ubuntu
-    $ sudo apt-get install rust-src
+Now you setup next step aurora....

@@ -7,45 +7,19 @@ use crate::{
     rust_bridge::{Bytes, XDRBuf},
 };
 use log::info;
-use std::{fmt::Display, io::Cursor};
+use std::io::Cursor;
 
 use im_rc::OrdMap;
-use soroban_env_host::{
+use std::error::Error;
+use hcnet_contract_env_host::{
     storage::{self, AccessType, Storage},
     xdr,
     xdr::{
         HostFunction, LedgerEntry, LedgerEntryData, LedgerKey, LedgerKeyAccount,
-        LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScUnknownErrorCode, ScVec, WriteXdr,
+        LedgerKeyContractData, LedgerKeyTrustLine, ReadXdr, ScVec, WriteXdr,
     },
     Host, HostError,
 };
-use std::error::Error;
-
-#[derive(Debug)]
-enum ContractError {
-    Host(HostError),
-    General(&'static str),
-}
-
-impl Display for ContractError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl From<HostError> for ContractError {
-    fn from(h: HostError) -> Self {
-        ContractError::Host(h)
-    }
-}
-
-impl From<xdr::Error> for ContractError {
-    fn from(_: xdr::Error) -> Self {
-        ContractError::Host(ScUnknownErrorCode::Xdr.into())
-    }
-}
-
-impl std::error::Error for ContractError {}
 
 /// Helper for [`build_storage_footprint_from_xdr`] that inserts a copy of some
 /// [`AccessType`] `ty` into a [`storage::Footprint`] for every [`LedgerKey`] in
@@ -54,11 +28,11 @@ fn populate_access_map(
     access: &mut OrdMap<LedgerKey, AccessType>,
     keys: Vec<LedgerKey>,
     ty: AccessType,
-) -> Result<(), ContractError> {
+) -> Result<(), HostError> {
     for lk in keys {
         match lk {
             LedgerKey::Account(_) | LedgerKey::Trustline(_) | LedgerKey::ContractData(_) => (),
-            _ => return Err(ContractError::General("unexpected ledger entry type")),
+            _ => return Err(HostError::General("unexpected ledger entry type")),
         };
         access.insert(lk, ty.clone());
     }
@@ -68,9 +42,7 @@ fn populate_access_map(
 /// Deserializes an [`xdr::LedgerFootprint`] from the provided [`XDRBuf`], converts
 /// its entries to an [`OrdMap`], and returns a [`storage::Footprint`]
 /// containing that map.
-fn build_storage_footprint_from_xdr(
-    footprint: &XDRBuf,
-) -> Result<storage::Footprint, ContractError> {
+fn build_storage_footprint_from_xdr(footprint: &XDRBuf) -> Result<storage::Footprint, HostError> {
     let xdr::LedgerFootprint {
         read_only,
         read_write,
@@ -82,7 +54,7 @@ fn build_storage_footprint_from_xdr(
     Ok(storage::Footprint(access))
 }
 
-fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, ContractError> {
+fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, HostError> {
     match &le.data {
         LedgerEntryData::Account(a) => Ok(LedgerKey::Account(LedgerKeyAccount {
             account_id: a.account_id.clone(),
@@ -95,7 +67,7 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, ContractErr
             contract_id: cd.contract_id.clone(),
             key: cd.key.clone(),
         })),
-        _ => Err(ContractError::General("unexpected ledger key")),
+        _ => Err(HostError::General("unexpected ledger key")),
     }
 }
 
@@ -106,15 +78,13 @@ fn ledger_entry_to_ledger_key(le: &LedgerEntry) -> Result<LedgerKey, ContractErr
 fn build_storage_map_from_xdr_ledger_entries(
     footprint: &storage::Footprint,
     ledger_entries: &Vec<XDRBuf>,
-) -> Result<OrdMap<LedgerKey, Option<LedgerEntry>>, ContractError> {
+) -> Result<OrdMap<LedgerKey, Option<LedgerEntry>>, HostError> {
     let mut map = OrdMap::new();
     for buf in ledger_entries {
         let le = LedgerEntry::read_xdr(&mut Cursor::new(buf.data.as_slice()))?;
         let key = ledger_entry_to_ledger_key(&le)?;
         if !footprint.0.contains_key(&key) {
-            return Err(ContractError::General(
-                "ledger entry not found in footprint",
-            ));
+            return Err(HostError::General("ledger entry not found in footprint").into());
         }
         map.insert(key, Some(le));
     }
@@ -131,7 +101,7 @@ fn build_storage_map_from_xdr_ledger_entries(
 fn build_xdr_ledger_entries_from_storage_map(
     footprint: &storage::Footprint,
     storage_map: &OrdMap<LedgerKey, Option<LedgerEntry>>,
-) -> Result<Vec<Bytes>, ContractError> {
+) -> Result<Vec<Bytes>, HostError> {
     let mut res = Vec::new();
     for (lk, ole) in storage_map {
         let mut xdr_buf: Vec<u8> = Vec::new();
@@ -143,7 +113,7 @@ fn build_xdr_ledger_entries_from_storage_map(
                     res.push(Bytes { vec: xdr_buf });
                 }
             }
-            None => return Err(ContractError::General("ledger entry not in footprint")),
+            None => return Err(HostError::General("ledger entry not in footprint")),
         }
     }
     Ok(res)
@@ -167,7 +137,7 @@ pub(crate) fn invoke_host_function(
     let map = build_storage_map_from_xdr_ledger_entries(&footprint, ledger_entries)?;
 
     let storage = Storage::with_enforcing_footprint_and_map(footprint, map);
-    let host = Host::with_storage(storage);
+    let mut host = Host::with_storage(storage);
 
     match hf {
         HostFunction::Call => {
@@ -182,7 +152,7 @@ pub(crate) fn invoke_host_function(
 
     let storage = host
         .recover_storage()
-        .map_err(|_h| ContractError::General("could not get storage from host"))?;
+        .map_err(|_h| HostError::General("could not get storage from host"))?;
     Ok(build_xdr_ledger_entries_from_storage_map(
         &storage.footprint,
         &storage.map,
