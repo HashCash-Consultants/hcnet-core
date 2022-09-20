@@ -11,7 +11,7 @@ These are instructions for building hcnet-core from source.
 For a potentially quicker set up, the following projects could be good alternatives:
 
 
-* hcnet-core and [aurora](https://github.com/HashCash-Consultants/go.git/releases) 
+* hcnet-core and [aurora](https://github.com/HashCash-Consultants/go.git) 
 * pre-compiled [packages](https://github.com/HashCash-Consultants/java-hashcash-sdk)
 
 ## Picking a version to run
