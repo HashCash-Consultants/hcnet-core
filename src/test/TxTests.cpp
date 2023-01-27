@@ -23,10 +23,12 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/ProtocolVersion.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdrpp/autocheck.h"
 
 #include <lib/catch.hpp>
 
@@ -157,7 +159,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             // else, leave feeCharged as per checkValid
             try
             {
-                TransactionMeta cleanTm(2);
+                TransactionMetaFrame cleanTm(
+                    ltxCleanTx.loadHeader().current().ledgerVersion);
                 checkedTxApplyRes = checkedTx->apply(app, ltxCleanTx, cleanTm);
             }
             catch (...)
@@ -222,7 +225,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     bool res = false;
     {
         LedgerTxn ltxTx(ltx);
-        TransactionMeta tm(2);
+        TransactionMetaFrame tm(ltxTx.loadHeader().current().ledgerVersion);
         try
         {
             res = tx->apply(app, ltxTx, tm);
@@ -241,7 +244,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 
         if (!res || tx->getResultCode() != txSUCCESS)
         {
-            REQUIRE(tm.v2().operations.size() == 0);
+            REQUIRE(tm.getNumOperations() == 0);
         }
         // checks that the failure is the same if pre checks failed
         if (!check)
@@ -359,7 +362,9 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             }
         }
         ltxTx.commit();
-        recordOrCheckGlobalTestTxMetadata(tm);
+        tm.setTxResult(tx->getResult());
+        tm.finalizeHashes();
+        recordOrCheckGlobalTestTxMetadata(tm.getXDR());
     }
 
     ltx.commit();
@@ -529,6 +534,16 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
 }
 
 TxSetResultMeta
+closeLedger(Application& app, TxSetFrameConstPtr txSet)
+{
+    auto lastCloseTime = app.getLedgerManager()
+                             .getLastClosedLedgerHeader()
+                             .header.scpValue.closeTime;
+    auto nextLedgerSeq = app.getLedgerManager().getLastClosedLedgerNum() + 1;
+    return closeLedgerOn(app, nextLedgerSeq, lastCloseTime, txSet);
+}
+
+TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
               TxSetFrameConstPtr txSet)
 {
@@ -602,7 +617,7 @@ getAccountSigners(PublicKey const& k, Application& app)
 TransactionFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, int fee)
+                            const std::vector<Operation>& ops, uint32_t fee)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
     e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
@@ -624,7 +639,7 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
 TransactionFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            const std::vector<Operation>& ops, int fee,
+                            const std::vector<Operation>& ops, uint32_t fee,
                             std::optional<PreconditionsV2> cond)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
@@ -653,7 +668,7 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
 TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops,
-                          int fee)
+                          uint32_t fee)
 {
     uint32_t ledgerVersion;
     {
@@ -675,6 +690,24 @@ transactionWithV2Precondition(Application& app, TestAccount& account,
     return transactionFromOperationsV1(
         app, account, account.getLastSequenceNumber() + sequenceDelta,
         {payment(account.getPublicKey(), 1)}, fee, cond);
+}
+
+TransactionFrameBasePtr
+feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
+        int64_t fee)
+{
+    REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
+    TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
+    fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
+    fb.feeBump().tx.fee = fee;
+    fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
+    fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
+
+    auto hash = sha256(xdr::xdr_to_opaque(
+        app.getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, fb.feeBump().tx));
+    fb.feeBump().signatures.emplace_back(SignatureUtils::sign(feeSource, hash));
+    return TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
+                                                         fb);
 }
 
 Operation
@@ -765,6 +798,29 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
 {
     auto op = payment(to, asset, amount);
     return transactionFromOperations(app, from, seq, {op});
+}
+
+TransactionFramePtr
+createSimpleDexTx(Application& app, TestAccount& account, int nbOps,
+                  uint32_t fee)
+{
+    std::vector<Operation> ops;
+    Asset asset1(ASSET_TYPE_NATIVE);
+    Asset asset2(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(asset2.alphaNum4().assetCode, "USD");
+    int nonDexOps = autocheck::generator<size_t>()(nbOps - 1);
+    for (int i = 0; i < nbOps - nonDexOps; ++i)
+    {
+        ops.emplace_back(
+            manageBuyOffer(i + 1, asset1, asset2, Price{2, 5}, 10));
+    }
+    for (int i = nbOps - nonDexOps; i < nbOps; ++i)
+    {
+        ops.emplace_back(payment(account.getPublicKey(), 1000));
+    }
+    hcnet::shuffle(ops.begin(), ops.end(), autocheck::rng());
+    return transactionFromOperations(app, account, account.nextSequenceNumber(),
+                                     ops, fee);
 }
 
 Asset

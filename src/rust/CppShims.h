@@ -12,8 +12,28 @@
 // constructors, etc). We isolate them in this file to avoid polluting normal
 // C++ code with too much interop glue.
 
+namespace rust
+{
+inline namespace cxxbridge1
+{
+template <typename T> class Vec;
+}
+}
+struct CxxBuf;
 namespace hcnet
 {
+class Application;
+struct HostFunctionMetrics;
+struct PreflightCallbacks
+{
+    Application& mApp;
+    HostFunctionMetrics& mMetrics;
+    PreflightCallbacks(Application& app, HostFunctionMetrics& metrics)
+        : mApp(app), mMetrics(metrics){};
+    CxxBuf get_ledger_entry(rust::Vec<uint8_t> const& key);
+    bool has_ledger_entry(rust::Vec<uint8_t> const& key);
+};
+
 inline bool
 shim_isLogLevelAtLeast(std::string const& partition, LogLevel level)
 {

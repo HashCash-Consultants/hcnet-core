@@ -39,7 +39,6 @@ class PeerStub : public Peer
         mState = GOT_AUTH;
         mAddress = address;
         mOutboundCapacity = std::numeric_limits<uint32>::max();
-        mFlowControlState = Peer::FlowControlState::ENABLED;
     }
     virtual std::string
     getIP() const override
@@ -270,24 +269,20 @@ class OverlayManagerTests
                 pm.recvFloodedMsg(AtoB, p.second);
             }
         }
-        pm.broadcastMessage(AtoB);
+        auto broadcastTxnMsg = [&](auto msg) {
+            pm.broadcastMessage(msg, false, xdrSha256(msg.transaction()));
+        };
+        broadcastTxnMsg(AtoB);
         crank(10);
         std::vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
-        pm.broadcastMessage(AtoB);
+        broadcastTxnMsg(AtoB);
         crank(10);
         REQUIRE(sentCounts(pm) == expected);
         HcnetMessage CtoD = c.tx({payment(d, 10)})->toHcnetMessage();
-        pm.broadcastMessage(CtoD);
+        broadcastTxnMsg(CtoD);
         crank(10);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};
-        REQUIRE(sentCounts(pm) == expectedFinal);
-
-        // Test that we updating a flood record actually prevents re-broadcast
-        HcnetMessage AtoC = a.tx({payment(c, 10)})->toHcnetMessage();
-        pm.updateFloodRecord(AtoB, AtoC);
-        pm.broadcastMessage(AtoC);
-        crank(10);
         REQUIRE(sentCounts(pm) == expectedFinal);
     }
 };

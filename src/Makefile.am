@@ -9,10 +9,18 @@ include $(srcdir)/src.mk
 noinst_HEADERS = $(SRC_H_FILES)
 
 if BUILD_TESTS
-hcnet_core_SOURCES = main/HcnetCoreVersion.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
+hcnet_core_SOURCES = main/HcnetCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES) $(SRC_TEST_CXX_FILES)
 else # !BUILD_TESTS
-hcnet_core_SOURCES = main/HcnetCoreVersion.cpp $(SRC_CXX_FILES)
+hcnet_core_SOURCES = main/HcnetCoreVersion.cpp main/XDRFilesSha256.cpp $(SRC_CXX_FILES)
 endif # !BUILD_TESTS
+
+if ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile.am $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-next >$@
+else
+main/XDRFilesSha256.cpp: $(SRC_X_FILES) Makefile.am $(top_srcdir)/hash-xdrs.sh
+	$(top_srcdir)/hash-xdrs.sh protocol-curr >$@
+endif
 
 hcnet_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
@@ -25,7 +33,7 @@ TEST_FILES = $(TESTDATA_DIR)/hcnet-core_example.cfg $(TESTDATA_DIR)/hcnet-core_s
              $(TESTDATA_DIR)/hcnet-core_testnet_validator.cfg $(TESTDATA_DIR)/hcnet-core_example_validators.cfg \
              $(TESTDATA_DIR)/hcnet-history.testnet.6714239.networkPassphrase.json
 
-BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/HcnetCoreVersion.cpp $(TEST_FILES)
+BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/HcnetCoreVersion.cpp main/XDRFilesSha256.cpp $(TEST_FILES)
 
 $(SRC_X_FILES:.x=.h): $(XDRC)
 SUFFIXES = .x .h .rs
@@ -68,7 +76,7 @@ hcnet_core_LDADD += $(LIBRUST_HCNET_CORE) -ldl
 
 $(RUST_CXXBRIDGE):
 	mkdir -p $(RUST_BIN_DIR)
-	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd
+	$(CARGO) install --root $(RUST_BUILD_DIR) cxxbridge-cmd --version 1.0.68
 
 rust/RustBridge.h: rust/src/lib.rs $(SRC_RUST_FILES) Makefile.am $(RUST_CXXBRIDGE)
 	$(RUST_CXXBRIDGE) $< --header --output $@.tmp

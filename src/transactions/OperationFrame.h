@@ -8,6 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "overlay/HcnetXDR.h"
 #include "util/types.h"
+#include <medida/metrics_registry.h>
 #include <memory>
 
 namespace medida
@@ -40,6 +41,8 @@ class OperationFrame
     OperationResult& mResult;
 
     virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
+    virtual bool doApply(AbstractLedgerTxn& ltx, Config const& cfg,
+                         medida::MetricsRegistry& metrics);
     virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
 
     // returns the threshold this operation requires
@@ -81,7 +84,8 @@ class OperationFrame
     bool checkValid(SignatureChecker& signatureChecker,
                     AbstractLedgerTxn& ltxOuter, bool forApply);
 
-    bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx);
+    bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx,
+               Config const& cfg, medida::MetricsRegistry& metrics);
 
     Operation const&
     getOperation() const
@@ -91,5 +95,7 @@ class OperationFrame
 
     virtual void
     insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const;
+
+    virtual bool isDexOperation() const;
 };
 }

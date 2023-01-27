@@ -244,6 +244,9 @@ class Config : public std::enable_shared_from_this<Config>
     // processes `FLOW_CONTROL_SEND_MORE_BATCH_SIZE` messages
     uint32_t FLOW_CONTROL_SEND_MORE_BATCH_SIZE;
 
+    // Used to flood transactions lazily by first flooding their hashes.
+    bool ENABLE_PULL_MODE;
+
     // A config parameter that allows a node to generate buckets. This should
     // be set to `false` only for testing purposes.
     bool MODE_ENABLES_BUCKETLIST;
@@ -257,6 +260,23 @@ class Config : public std::enable_shared_from_this<Config>
     // A config parameter that can be set to true (in a captive-core
     // configuration) to delay emitting metadata by one ledger.
     bool EXPERIMENTAL_PRECAUTION_DELAY_META;
+
+    // A config parameter that when set uses the BucketList as the primary
+    // key-value store for LedgerEntry lookups
+    bool EXPERIMENTAL_BUCKETLIST_DB;
+
+    // Page size exponent used by BucketIndex when indexing ranges of
+    // BucketEntry's. If set to 0, BucketEntry's are individually indexed.
+    // Otherwise, pageSize ==
+    // 2^EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT.
+    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_PAGE_SIZE_EXPONENT;
+
+    // Size, in MB, determining whether a bucket should have an individual
+    // key index or a key range index. If bucket size is below this value, range
+    // based index will be used. If set to 0, all buckets are range indexed. If
+    // index page size == 0, value ingnored and all buckets have individual key
+    // index.
+    size_t EXPERIMENTAL_BUCKETLIST_DB_INDEX_CUTOFF;
 
     // A config parameter that stores historical data, such as transactions,
     // fees, and scp history in the database
@@ -354,6 +374,22 @@ class Config : public std::enable_shared_from_this<Config>
     // first time
     time_t MAXIMUM_LEDGER_CLOSETIME_DRIFT;
 
+    // Maximum allowed number of DEX-related operations in the transaction set.
+    //
+    // Transaction is considered to have DEX-related operations if it has path
+    // payments or manage offer operations.
+    //
+    // Setting this to non-nullopt value results in the following:
+    // - The node will limit the number of accepted DEX-related transactions
+    //   proportional to `MAX_DEX_TX_OPERATIONS_IN_TX_SET / maxTxSetSize`
+    //   (ledger header parameter).
+    // - The node will broadcast less DEX-related transactions according to the
+    //   proportion above.
+    // - Starting from protocol 20 the node will nominate TX sets that respect
+    //   this limit and potentially have DEX-related transactions surge-priced
+    //   against each other.
+    std::optional<uint32_t> MAX_DEX_TX_OPERATIONS_IN_TX_SET;
+
     // note: all versions in the range
     // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled
     uint32_t OVERLAY_PROTOCOL_MIN_VERSION; // min overlay version understood
@@ -393,6 +429,10 @@ class Config : public std::enable_shared_from_this<Config>
     int FLOOD_TX_PERIOD_MS;
     int32_t FLOOD_ARB_TX_BASE_ALLOWANCE;
     double FLOOD_ARB_TX_DAMPING_FACTOR;
+
+    std::chrono::milliseconds FLOOD_DEMAND_PERIOD_MS;
+    std::chrono::milliseconds FLOOD_ADVERT_PERIOD_MS;
+    std::chrono::milliseconds FLOOD_DEMAND_BACKOFF_DELAY_MS;
     static constexpr size_t const POSSIBLY_PREFERRED_EXTRA = 2;
     static constexpr size_t const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
 
@@ -494,9 +534,9 @@ class Config : public std::enable_shared_from_this<Config>
     void setInMemoryMode();
     bool isInMemoryMode() const;
     bool isInMemoryModeWithoutMinimalDB() const;
+    bool isUsingBucketListDB() const;
     bool modeStoresAllHistory() const;
     bool modeStoresAnyHistory() const;
-
     void logBasicInfo();
     void setNoListen();
     void setNoPublish();

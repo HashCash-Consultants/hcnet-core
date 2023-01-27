@@ -713,11 +713,11 @@ If `compact=false`, then it also returns some extra metrics on each peer such as
                   "flood" : 500,
                   "reading" : 600
                },
-               "peer_capacity" : 100,
-               "state" : "enabled"
+               "peer_capacity" : 100
             },
            "id" : "sdf1",
            "olver" : 5,
+           "pull_mode": false,
            "ver" : "v9.1.0"
         }
      ],
@@ -730,11 +730,11 @@ If `compact=false`, then it also returns some extra metrics on each peer such as
                 "flood" : 500,
                 "reading" : 600
              },
-             "peer_capacity" : 100,
-             "state" : "enabled"
+             "peer_capacity" : 100
           },
           "id" : "sdf2",
           "olver" : 5,
+          "pull_mode": true,
           "ver" : "v9.1.0"
        },
        {
@@ -745,11 +745,11 @@ If `compact=false`, then it also returns some extra metrics on each peer such as
                 "flood" : 500,
                 "reading" : 600
              },
-             "peer_capacity" : 100,
-             "state" : "enabled"
+             "peer_capacity" : 100
           },
           "id" : "sdf3",
           "olver" : 5,
+          "pull_mode": true,
           "ver" : "v9.1.0"
         }
      ]

@@ -88,12 +88,14 @@
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
@@ -101,26 +103,29 @@
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
     <CodeAnalysisRuleSet>CppCoreCheckConstRules.ruleset</CodeAnalysisRuleSet>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
     <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
     <CustomBuildBeforeTargets>BuildGenerateSources</CustomBuildBeforeTargets>
     <PostBuildEventUseInBuild>true</PostBuildEventUseInBuild>
+    <PreBuildEventUseInBuild>true</PreBuildEventUseInBuild>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\9.5\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -135,15 +140,13 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\debug\rust_hcnet_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
       <Inputs>src/$(Configuration)/generated/xdr/Hcnet-internal.h;src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
@@ -153,10 +156,6 @@
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
     <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
-    <CustomBuild>
       <Outputs>
       </Outputs>
       <Message />
@@ -165,20 +164,29 @@
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\9.5\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -193,27 +201,21 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\debug\rust_hcnet_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
+      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-internal.h;src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -224,20 +226,29 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\9.5\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -252,29 +263,23 @@ exit /b 0
     </ClCompile>
     <Link>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\debug\rust_hcnet_core.lib</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>
       </IgnoreSpecificDefaultLibraries>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-overlay.h;src/$(Configuration)/generated/rust/RustBridge.h</Inputs>
+      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-internal.h;src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -285,12 +290,21 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">
     <ClCompile>
@@ -299,8 +313,8 @@ exit /b 0
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\9.5\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USE_POSTGRES;ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION=1;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -313,27 +327,21 @@ exit /b 0
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\release\rust_hcnet_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>cargo build --release --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
+      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-internal.h;src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -343,12 +351,21 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">
     <ClCompile>
@@ -357,8 +374,8 @@ exit /b 0
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\9.5\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>USE_POSTGRES;USE_SPDLOG;FMT_HEADER_ONLY=1;BUILD_TESTS;WIN32_LEAN_AND_MEAN;NOMINMAX;ASIO_STANDALONE;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;TRACY_ENABLE;TRACY_ON_DEMAND;TRACY_NO_BROADCAST;TRACY_ONLY_LOCALHOST;USE_TRACY;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0601;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;YY_NO_UNISTD_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/tracy;../../lib/spdlog/include;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../../lib/fmt/include;../..;src/$(Configuration)/generated;../../lib/sqlite;c:\Program Files\PostgreSQL\15\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -371,27 +388,21 @@ exit /b 0
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;%(AdditionalDependencies);C:\Program Files\PostgreSQL\9.5\lib\libpq.lib</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;psapi.lib;Credui.lib;userenv.lib;bcrypt.lib;$(OutDir)\rust\target\release\rust_hcnet_core.lib;C:\Program Files\PostgreSQL\15\lib\libpq.lib;%(AdditionalDependencies);</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
-      <Command>
-      </Command>
+      <Command>cargo build --release --target-dir $(OutDir)\rust\target</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>
-      </Message>
+      <Message>Rust</Message>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
+      <Inputs>src/$(Configuration)/generated/xdr/Hcnet-internal.h;src/$(Configuration)/generated/xdr/Hcnet-overlay.h</Inputs>
       <Command>@echo XDR &gt; $(IntermediateOutputPath)\xdrgen.stamp</Command>
       <Message>XDR check</Message>
       <Outputs>$(IntermediateOutputPath)\xdrgen.stamp</Outputs>
       <TreatOutputAsContent>false</TreatOutputAsContent>
     </CustomBuildStep>
-    <CustomBuild>
-      <Command>
-      </Command>
-    </CustomBuild>
     <CustomBuild>
       <Outputs>
       </Outputs>
@@ -402,12 +413,21 @@ exit /b 0
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
 robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\testdata $(OutDir)\testdata *.* &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
       <Message>copy testdata</Message>
     </PostBuildEvent>
+    <PreLinkEvent>
+      <Command>
+      </Command>
+    </PreLinkEvent>
+    <PreLinkEvent>
+      <Message>
+      </Message>
+    </PreLinkEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\tracy\TracyClient.cpp" />
@@ -415,6 +435,7 @@ exit /b 0
     <ClCompile Include="..\..\lib\util\siphash.cpp" />
     <ClCompile Include="..\..\src\bucket\Bucket.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketIndex.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketList.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp" />
@@ -423,18 +444,22 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
     <ClCompile Include="..\..\src\bucket\MergeKey.cpp" />
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp" />
+    <ClCompile Include="..\..\src\bucket\test\BucketIndexTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketListTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketManagerTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketMergeMapTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketTests.cpp" />
+    <ClCompile Include="..\..\src\bucket\test\BucketTestUtils.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyBufferedLedgersWork.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyCheckpointWork.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyLedgerWork.cpp" />
+    <ClCompile Include="..\..\src\catchup\AssumeStateWork.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupRange.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp" />
+    <ClCompile Include="..\..\src\catchup\IndexBucketsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp" />
@@ -485,9 +510,11 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp" />
     <ClCompile Include="..\..\src\historywork\test\HistoryWorkTests.cpp" />
     <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp" />
+    <ClCompile Include="..\..\src\invariant\test\LedgerEntryIsValidTests.cpp" />
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerCloseMetaFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTxnContractCodeSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnLiquidityPoolSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnConfigSettingSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnContractDataSQL.cpp" />
@@ -498,6 +525,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\SurveyMessageLimiter.cpp" />
     <ClCompile Include="..\..\src\overlay\test\SurveyManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\SurveyMessageLimiterTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\test\TxAdvertQueueTests.cpp" />
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.cpp" />
@@ -527,12 +555,14 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\ClawbackClaimableBalanceTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\CreateAccountTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\FeeBumpTransactionTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\InvokeHostFunctionTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\PathPaymentStrictSendTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\BeginSponsoringFutureReservesTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\SponsorshipTestUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\test\RevokeSponsorshipTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionBridge.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp" />
+    <ClCompile Include="..\..\src\transactions\TransactionMetaFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp" />
     <ClCompile Include="..\..\src\transactions\RevokeSponsorshipOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TrustFlagsOpFrameBase.cpp" />
@@ -690,6 +720,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\test\LedgerTestUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTxnTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp" />
+    <ClCompile Include="..\..\src\ledger\TransactionResultSetFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
@@ -725,10 +756,12 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\test\LoopbackPeer.cpp" />
     <ClCompile Include="..\..\src\overlay\test\OverlayManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\OverlayTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\test\OverlayTestUtils.cpp" />
     <ClCompile Include="..\..\src\overlay\test\PeerManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\TrackerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\Tracker.cpp" />
+    <ClCompile Include="..\..\src\overlay\TxAdvertQueue.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp" />
@@ -818,6 +851,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\TmpDir.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
+    <ClCompile Include="..\..\src\util\MetaUtils.cpp" />
     <ClCompile Include="..\..\src\util\MetricResetter.cpp" />
     <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
@@ -828,16 +862,23 @@ exit /b 0
     <ClCompile Include="..\..\src\work\WorkScheduler.cpp" />
     <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
     <ClCompile Include="..\..\src\work\WorkWithCallback.cpp" />
-    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp" />
+    <ClCompile Include="src\$(Configuration)\generated\rust\RustBridge.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="src\$(Configuration)\generated\xdr\XDRFilesSha256.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\lib\bloom_filter.hpp" />
     <ClInclude Include="..\..\lib\catch.hpp" />
+    <ClInclude Include="..\..\lib\clara.hpp" />
     <ClInclude Include="..\..\lib\util\finally.h" />
     <ClInclude Include="..\..\lib\fmt\include\fmt\format.h" />
     <ClInclude Include="..\..\lib\util\siphash.h" />
     <ClInclude Include="..\..\lib\util\stdrandom.h" />
     <ClInclude Include="..\..\src\bucket\Bucket.h" />
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h" />
+    <ClInclude Include="..\..\src\bucket\BucketIndex.h" />
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h" />
     <ClInclude Include="..\..\src\bucket\BucketList.h" />
     <ClInclude Include="..\..\src\bucket\BucketManager.h" />
@@ -849,16 +890,19 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\LedgerCmp.h" />
     <ClInclude Include="..\..\src\bucket\MergeKey.h" />
     <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h" />
+    <ClInclude Include="..\..\src\bucket\test\BucketTestUtils.h" />
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h" />
     <ClInclude Include="..\..\src\catchup\ApplyBufferedLedgersWork.h" />
     <ClInclude Include="..\..\src\catchup\ApplyCheckpointWork.h" />
     <ClInclude Include="..\..\src\catchup\ApplyLedgerWork.h" />
+    <ClInclude Include="..\..\src\catchup\AssumeStateWork.h" />
     <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManager.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h" />
     <ClInclude Include="..\..\src\catchup\CatchupRange.h" />
     <ClInclude Include="..\..\src\catchup\CatchupWork.h" />
     <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h" />
+    <ClInclude Include="..\..\src\catchup\IndexBucketsWork.h" />
     <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h" />
     <ClInclude Include="..\..\src\catchup\simulation\TxSimApplyTransactionsWork.h" />
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
@@ -934,6 +978,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionBridge.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h" />
+    <ClInclude Include="..\..\src\transactions\TransactionMetaFrame.h" />
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h" />
     <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\TrustFlagsOpFrameBase.h" />
@@ -1011,6 +1056,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h" />
     <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxn.h" />
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
+    <ClInclude Include="..\..\src\ledger\TransactionResultSetFrame.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\ApplicationImpl.h" />
@@ -1061,6 +1107,8 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\overlay\test\LoopbackPeer.h" />
     <ClInclude Include="..\..\src\overlay\Tracker.h" />
+    <ClInclude Include="..\..\src\overlay\TxAdvertQueue.h" />
+    <ClInclude Include="..\..\src\overlay\test\TxAdvertQueue.h" />
     <ClInclude Include="..\..\src\process\ProcessManager.h" />
     <ClInclude Include="..\..\src\process\ProcessManagerImpl.h" />
     <ClInclude Include="..\..\src\rust\CppShims.h" />
@@ -1130,6 +1178,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
+    <ClInclude Include="..\..\src\util\MetaUtils.h" />
     <ClInclude Include="..\..\src\util\MetricResetter.h" />
     <ClInclude Include="..\..\src\util\XDRStream.h" />
     <ClInclude Include="..\..\src\util\RandomEvictionCache.h" />
@@ -1183,6 +1232,39 @@ exit /b 0
     <None Include="..\..\docs\transaction.md" />
     <None Include="..\..\docs\tx-simulation.md" />
     <None Include="..\..\docs\versioning.md" />
+    <CustomBuild Include="..\..\hash-xdrs.sh">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">false</ExcludedFromBuild>
+      <FileType>Document</FileType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">false</ExcludedFromBuild>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">src/$(Configuration)/generated/xdr/Hcnet-overlay.h;src/$(Configuration)/generated/xdr/Hcnet-transaction.h;src/$(Configuration)/generated/xdr/Hcnet-ledger.h;src/$(Configuration)/generated/xdr/Hcnet-ledger-entries.h;src/$(Configuration)/generated/xdr/Hcnet-SCP.h;src/$(Configuration)/generated/xdr/Hcnet-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">src/$(Configuration)/generated/xdr/Hcnet-overlay.h;src/$(Configuration)/generated/xdr/Hcnet-transaction.h;src/$(Configuration)/generated/xdr/Hcnet-ledger.h;src/$(Configuration)/generated/xdr/Hcnet-ledger-entries.h;src/$(Configuration)/generated/xdr/Hcnet-SCP.h;src/$(Configuration)/generated/xdr/Hcnet-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-curr &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">src/$(Configuration)/generated/xdr/Hcnet-overlay.h;src/$(Configuration)/generated/xdr/Hcnet-transaction.h;src/$(Configuration)/generated/xdr/Hcnet-ledger.h;src/$(Configuration)/generated/xdr/Hcnet-ledger-entries.h;src/$(Configuration)/generated/xdr/Hcnet-SCP.h;src/$(Configuration)/generated/xdr/Hcnet-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/$(Configuration)/generated/xdr/Hcnet-overlay.h;src/$(Configuration)/generated/xdr/Hcnet-transaction.h;src/$(Configuration)/generated/xdr/Hcnet-ledger.h;src/$(Configuration)/generated/xdr/Hcnet-ledger-entries.h;src/$(Configuration)/generated/xdr/Hcnet-SCP.h;src/$(Configuration)/generated/xdr/Hcnet-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">None</OutputItemType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">sh ../../hash-xdrs.sh ../../src/protocol-next &gt; src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">running hash-xdrs.sh</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/XDRFilesSha256.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">src/$(Configuration)/generated/xdr/Hcnet-overlay.h;src/$(Configuration)/generated/xdr/Hcnet-transaction.h;src/$(Configuration)/generated/xdr/Hcnet-ledger.h;src/$(Configuration)/generated/xdr/Hcnet-ledger-entries.h;src/$(Configuration)/generated/xdr/Hcnet-SCP.h;src/$(Configuration)/generated/xdr/Hcnet-types.h</AdditionalInputs>
+      <OutputItemType Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">None</OutputItemType>
+    </CustomBuild>
     <None Include="..\..\INSTALL.md" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
@@ -1448,27 +1530,7 @@ exit /b 0
     </CustomBuild>
     <None Include="..\..\src\ledger\readme.md" />
     <None Include="..\..\src\overlay\readme.md" />
-    <CustomBuild Include="..\..\src\rust\Cargo.toml">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">(set CFLAGS=-MDd) &amp; (set CXXFLAGS=-MDd) &amp; cargo build --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Command>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">cargo build --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">cargo build --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">cargo build --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">cargo build --release --target-dir $(OutDir)\rust\target</Message>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNextV|x64'">$(OutDir)\rust\target\debug\rust_hcnet_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugCurrV|x64'">$(OutDir)\rust\target\debug\rust_hcnet_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\rust\target\debug\rust_hcnet_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseNextV|x64'">$(OutDir)\rust\target\release\rust_hcnet_core.lib</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseCurrV|x64'">$(OutDir)\rust\target\release\rust_hcnet_core.lib</Outputs>
-      <LinkObjects>true</LinkObjects>
-      <BuildInParallel>true</BuildInParallel>
-      <AdditionalInputs>$(ProjectDir)..\..\src\rust\src\lib.rs;%(AdditionalInputs)</AdditionalInputs>
-    </CustomBuild>
+    <None Include="..\..\src\rust\Cargo.toml" />
     <CustomBuild Include="..\..\src\rust\src\lib.rs">
       <FileType>Document</FileType>
       <Command>$(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --header --output src\$(Configuration)\generated\rust\RustBridge.h
@@ -1477,14 +1539,24 @@ $(OutDir)\bin\cxxbridge.exe ..\..\src\rust\src\lib.rs --output src\$(Configurati
       <Outputs>src\$(Configuration)\generated\rust\RustBridge.h;src\$(Configuration)\generated\rust\RustBridge.cpp</Outputs>
       <OutputItemType>ClInclude</OutputItemType>
       <AdditionalInputs>$(OutDir)\bin\cxxbridge.exe</AdditionalInputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">$(OutDir)\bin\cxxbridge.exe;$(OutDir)\rust\target\debug\rust_hcnet_core.lib</AdditionalInputs>
     </CustomBuild>
     <CustomBuild Include="..\..\src\rust\install-cxxbridge-cmd">
       <FileType>Document</FileType>
-      <Command>cargo install --root $(OutDir) cxxbridge-cmd</Command>
-      <Message>cargo install --root $(OutDir) cxxbridge-cmd</Message>
+      <Command>cargo install --root $(OutDir) cxxbridge-cmd --version 1.0.68</Command>
+      <Message>cargo install --root $(OutDir) cxxbridge-cmd --version 1.0.68</Message>
       <Outputs>$(OutDir)/bin/cxxbridge.exe</Outputs>
     </CustomBuild>
+    <None Include="..\..\src\rust\src\b64.rs" />
+    <None Include="..\..\src\rust\src\contract.rs" />
+    <None Include="..\..\src\rust\src\log.rs" />
     <None Include="..\..\src\scp\readme.md" />
+    <None Include="..\..\src\test\check-nondet" />
+    <None Include="..\..\src\test\run-selftest-nopg" />
+    <None Include="..\..\src\test\run-selftest-pg" />
+    <None Include="..\..\src\test\selftest-nopg" />
+    <None Include="..\..\src\test\selftest-parallel" />
+    <None Include="..\..\src\test\selftest-pg" />
     <None Include="..\..\src\transactions\readme.md" />
     <None Include="..\..\ci-build.sh" />
     <None Include="..\..\src\util\LogPartitions.def" />

@@ -65,6 +65,8 @@ class Herder
     // this is to help recover potential missing SCP messages for other nodes
     static uint32 const SCP_EXTRA_LOOKBACK_LEDGERS;
 
+    static std::chrono::minutes const TX_SET_GC_DELAY;
+
     enum State
     {
         // Starting up, no state is known
@@ -139,6 +141,8 @@ class Herder
                      std::optional<SecretKey> skToSignValue = std::nullopt) = 0;
 
     virtual VirtualTimer const& getTriggerTimer() const = 0;
+
+    virtual TransactionQueue& getTransactionQueue() = 0;
 #endif
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
@@ -188,5 +192,9 @@ class Herder
                                                     bool fullKeys) = 0;
     virtual QuorumTracker::QuorumMap const&
     getCurrentlyTrackedQuorum() const = 0;
+
+    virtual size_t getMaxQueueSizeOps() const = 0;
+    virtual bool isBannedTx(Hash const& hash) const = 0;
+    virtual TransactionFrameBaseConstPtr getTx(Hash const& hash) const = 0;
 };
 }

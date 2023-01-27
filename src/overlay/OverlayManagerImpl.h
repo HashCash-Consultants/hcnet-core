@@ -95,6 +95,35 @@ class OverlayManagerImpl : public OverlayManager
 
     std::shared_ptr<SurveyManager> mSurveyManager;
 
+    // This gets called once when starting
+    // and it continues to call itself every FLOOD_DEMAND_PERIOD_MS.
+    void demand();
+    VirtualTimer mDemandTimer;
+    struct DemandHistory
+    {
+        VirtualClock::time_point firstDemanded;
+        VirtualClock::time_point lastDemanded;
+        UnorderedMap<NodeID, VirtualClock::time_point> peers;
+        bool latencyRecorded{false};
+    };
+    UnorderedMap<Hash, DemandHistory> mDemandHistoryMap;
+
+    std::queue<Hash> mPendingDemands;
+    enum class DemandStatus
+    {
+        DEMAND,      // Demand
+        RETRY_LATER, // The timer hasn't expired, and we need to come back to
+                     // this.
+        DISCARD      // We should never demand this txn from this peer.
+    };
+    DemandStatus demandStatus(Hash const& txHash, Peer::pointer) const;
+
+    // After `MAX_RETRY_COUNT` attempts with linear back-off, we assume that
+    // no one has the transaction.
+    int const MAX_RETRY_COUNT = 15;
+    std::chrono::milliseconds retryDelayDemand(int numAttemptsMade) const;
+    size_t getMaxDemandSize() const;
+
   public:
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
@@ -103,8 +132,9 @@ class OverlayManagerImpl : public OverlayManager
     bool recvFloodedMsgID(HcnetMessage const& msg, Peer::pointer peer,
                           Hash& msgID) override;
     void forgetFloodedMsg(Hash const& msgID) override;
-    bool broadcastMessage(HcnetMessage const& msg,
-                          bool force = false) override;
+    bool
+    broadcastMessage(HcnetMessage const& msg, bool force = false,
+                     std::optional<Hash> const hash = std::nullopt) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;
@@ -126,7 +156,7 @@ class OverlayManagerImpl : public OverlayManager
     getOutboundAuthenticatedPeers() const override;
     std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const override;
     int getAuthenticatedPeersCount() const override;
-    int64_t getFlowControlPercentage() const override;
+    int64_t getPullModePercentage() const override;
 
     // returns nullptr if the passed peer isn't found
     Peer::pointer getConnectedPeer(PeerBareAddress const& address) override;
@@ -152,8 +182,9 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(HcnetMessage const& hcnetMsg,
                              Peer::pointer peer) override;
 
-    void updateFloodRecord(HcnetMessage const& oldMsg,
-                           HcnetMessage const& newMsg) override;
+    void recordTxPullLatency(Hash const& hash,
+                             std::shared_ptr<Peer> peer) override;
+    size_t getMaxAdvertSize() const override;
 
   private:
     struct ResolvedPeers

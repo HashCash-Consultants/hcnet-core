@@ -5,6 +5,7 @@
 #pragma once
 
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionMetaFrame.h"
 
 namespace hcnet
 {
@@ -57,7 +58,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     virtual ~FeeBumpTransactionFrame(){};
 
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMeta& meta) override;
+               TransactionMetaFrame& meta) override;
 
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                     uint64_t lowerBoundCloseTimeOffset,
@@ -97,5 +98,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     static TransactionEnvelope
     convertInnerTxToV1(TransactionEnvelope const& envelope);
+
+    bool hasDexOperations() const override;
 };
 }

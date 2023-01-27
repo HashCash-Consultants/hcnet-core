@@ -8,7 +8,9 @@
 
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/HcnetXDR.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "util/UnorderedSet.h"
+#include "util/types.h"
 #include <optional>
 
 namespace hcnet
@@ -31,7 +33,7 @@ class TransactionFrameBase
                             TransactionEnvelope const& env);
 
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
-                       TransactionMeta& meta) = 0;
+                       TransactionMetaFrame& meta) = 0;
 
     virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
                             uint64_t lowerBoundCloseTimeOffset,
@@ -68,5 +70,7 @@ class TransactionFrameBase
                                   std::optional<int64_t> baseFee) = 0;
 
     virtual HcnetMessage toHcnetMessage() const = 0;
+
+    virtual bool hasDexOperations() const = 0;
 };
 }

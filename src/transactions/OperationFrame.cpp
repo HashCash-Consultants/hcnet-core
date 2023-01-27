@@ -34,6 +34,7 @@
 #include "util/ProtocolVersion.h"
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
+#include <medida/metrics_registry.h>
 
 namespace hcnet
 {
@@ -134,7 +135,8 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(SignatureChecker& signatureChecker,
-                      AbstractLedgerTxn& ltx)
+                      AbstractLedgerTxn& ltx, Config const& cfg,
+                      medida::MetricsRegistry& metrics)
 {
     ZoneScoped;
     bool res;
@@ -142,11 +144,20 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     res = checkValid(signatureChecker, ltx, true);
     if (res)
     {
-        res = doApply(ltx);
+        res = doApply(ltx, cfg, metrics);
         CLOG_TRACE(Tx, "{}", xdr_to_string(mResult, "OperationResult"));
     }
 
     return res;
+}
+
+bool
+OperationFrame::doApply(AbstractLedgerTxn& ltx, Config const& _cfg,
+                        medida::MetricsRegistry& _metrics)
+{
+    // By default we ignore the cfg and metrics, but subclasses can override to
+    // intercept and use them.
+    return doApply(ltx);
 }
 
 ThresholdLevel
@@ -266,6 +277,12 @@ OperationFrame::resetResultSuccess()
 {
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
+}
+
+bool
+OperationFrame::isDexOperation() const
+{
+    return false;
 }
 
 void

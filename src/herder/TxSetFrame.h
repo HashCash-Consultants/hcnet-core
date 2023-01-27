@@ -4,13 +4,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/SurgePricingUtils.h"
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/HcnetXDR.h"
 #include "transactions/TransactionFrame.h"
 #include "util/NonCopyable.h"
+#include "xdr/Hcnet-internal.h"
 
 #include <deque>
 #include <functional>
+#include <optional>
 #include <unordered_map>
 
 namespace hcnet
@@ -22,7 +25,6 @@ using TxSetFrameConstPtr = std::shared_ptr<TxSetFrame const>;
 class TxSetFrame : public NonMovableOrCopyable
 {
   public:
-    using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
     using Transactions = std::vector<TransactionFrameBasePtr>;
 
     // Creates a valid TxSetFrame from the provided transactions.
@@ -31,6 +33,9 @@ class TxSetFrame : public NonMovableOrCopyable
     // there are too many remaining transactions surge pricing is applied.
     // The result is guaranteed to pass `checkValid` check with the same
     // arguments as in this method, so additional validation is not needed.
+    //
+    // **Note**: the output `TxSetFrame` will *not* contain the input
+    // transaction pointers.
     static TxSetFrameConstPtr
     makeFromTransactions(Transactions const& txs, Application& app,
                          uint64_t lowerBoundCloseTimeOffset,
@@ -57,6 +62,12 @@ class TxSetFrame : public NonMovableOrCopyable
     makeFromWire(Hash const& networkID,
                  GeneralizedTransactionSet const& xdrTxSet);
 
+    // Creates a TxSetFrame from StoredTransactionSet (internally persisted tx
+    // set format).
+    static TxSetFrameConstPtr
+    makeFromStoredTxSet(StoredTransactionSet const& storedSet,
+                        Application& app);
+
     virtual ~TxSetFrame(){};
 
     // Returns the base fee for the transaction or std::nullopt when the
@@ -69,9 +80,8 @@ class TxSetFrame : public NonMovableOrCopyable
 
     Hash const& previousLedgerHash() const;
 
-    // Gets all the transactions belonging to this frame sorted by their full
-    // hashes.
-    Transactions const& getTxsInHashOrder() const;
+    // Gets all the transactions belonging to this frame in arbitrary order.
+    Transactions const& getTxs() const;
 
     /*
     Build a list of transaction ready to be applied to the last closed ledger,
@@ -128,7 +138,8 @@ class TxSetFrame : public NonMovableOrCopyable
     TxSetFrame(bool isGeneralized, Hash const& previousLedgerHash,
                Transactions const& txs);
 
-    // Computes the fees for transactions in this set.
+    // Computes the fees for transactions in this set based on information from
+    // the non-generalized tx set.
     // This has to be `const` in combination with `mutable` fee-related fields
     // in order to accommodate one specific case: legacy (non-generalized) tx
     // sets received from the peers don't include the fee information and we
@@ -136,7 +147,8 @@ class TxSetFrame : public NonMovableOrCopyable
     // Hence we lazily compute the fees in `getTxBaseFee` for such TxSetFrames.
     // This can be cleaned up after the protocol migration as non-generalized tx
     // sets won't exist in the network anymore.
-    void computeTxFees(LedgerHeader const& lclHeader) const;
+    void computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader) const;
+
     void computeContentsHash();
 
     std::optional<Hash> mHash;
@@ -146,7 +158,19 @@ class TxSetFrame : public NonMovableOrCopyable
     bool addTxsFromXdr(Hash const& networkID,
                        xdr::xvector<TransactionEnvelope> const& txs,
                        bool useBaseFee, std::optional<int64_t> baseFee);
-    void surgePricingFilter(uint32_t opsLeft);
+    void applySurgePricing(Application& app);
+
+    void computeTxFeesForNonGeneralizedSet(LedgerHeader const& lclHeader,
+                                           int64_t lowestBaseFee,
+                                           bool enableLogging) const;
+
+    void computeTxFees(LedgerHeader const& lclHeader, int64_t lowestBaseFee,
+                       bool enableLogging) const;
+
+    void computeTxFees(LedgerHeader const& ledgerHeader,
+                       SurgePricingLaneConfig const& surgePricingConfig,
+                       std::vector<int64_t> const& lowestLaneFee,
+                       std::vector<bool> const& hadTxNotFittingLane);
 
     bool const mIsGeneralized;
 

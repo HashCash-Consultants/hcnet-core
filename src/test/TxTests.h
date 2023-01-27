@@ -100,6 +100,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, TimePoint closeTime,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool strictOrder = false);
 
+TxSetResultMeta closeLedger(Application& app, TxSetFrameConstPtr txSet);
+
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
                               time_t closeTime, TxSetFrameConstPtr txSet);
 
@@ -122,25 +124,27 @@ bool doesAccountExist(Application& app, PublicKey const& k);
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionFramePtr
-transactionFromOperationsV0(Application& app, SecretKey const& from,
-                            SequenceNumber seq,
-                            std::vector<Operation> const& ops, int fee = 0);
+TransactionFramePtr transactionFromOperationsV0(
+    Application& app, SecretKey const& from, SequenceNumber seq,
+    std::vector<Operation> const& ops, uint32_t fee = 0);
 TransactionFramePtr
 transactionFromOperationsV1(Application& app, SecretKey const& from,
                             SequenceNumber seq,
-                            std::vector<Operation> const& ops, int fee,
+                            std::vector<Operation> const& ops, uint32_t fee,
                             std::optional<PreconditionsV2> cond = std::nullopt);
 TransactionFramePtr transactionFromOperations(Application& app,
                                               SecretKey const& from,
                                               SequenceNumber seq,
                                               std::vector<Operation> const& ops,
-                                              int fee = 0);
+                                              uint32_t fee = 0);
 TransactionFramePtr transactionWithV2Precondition(Application& app,
                                                   TestAccount& account,
                                                   int64_t sequenceDelta,
                                                   uint32_t fee,
                                                   PreconditionsV2 const& cond);
+
+TransactionFrameBasePtr feeBump(Application& app, TestAccount& feeSource,
+                                TransactionFrameBasePtr tx, int64_t fee);
 
 Operation changeTrust(Asset const& asset, int64_t limit);
 Operation changeTrust(ChangeTrustAsset const& asset, int64_t limit);
@@ -178,6 +182,9 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
                                           SecretKey const& from,
                                           PublicKey const& to, Asset const& ci,
                                           SequenceNumber seq, int64_t amount);
+
+TransactionFramePtr createSimpleDexTx(Application& app, TestAccount& account,
+                                      int nbOps, uint32_t fee);
 
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,

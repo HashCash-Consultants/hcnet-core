@@ -162,11 +162,13 @@ class HerderImpl : public Herder
                      xdr::xvector<UpgradeType, 6> const& upgrades,
                      SecretKey const& s) override;
 
+    void startTxSetGCTimer();
+
 #ifdef BUILD_TESTS
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
 
-    TransactionQueue& getTransactionQueue();
+    TransactionQueue& getTransactionQueue() override;
 #endif
 
     // helper function to verify envelopes are signed
@@ -176,6 +178,10 @@ class HerderImpl : public Herder
 
     // helper function to verify SCPValues are signed
     bool verifyHcnetValueSignature(HcnetValue const& sv);
+
+    size_t getMaxQueueSizeOps() const override;
+    bool isBannedTx(Hash const& hash) const override;
+    TransactionFrameBaseConstPtr getTx(Hash const& hash) const override;
 
   private:
     // return true if values referenced by envelope have a valid close time:
@@ -198,6 +204,7 @@ class HerderImpl : public Herder
     void processSCPQueueUpToIndex(uint64 slotIndex);
     void safelyProcessSCPQueue(bool synchronous);
     void newSlotExternalized(bool synchronous, HcnetValue const& value);
+    void purgeOldPersistedTxSets();
 
     TransactionQueue mTransactionQueue;
 
@@ -240,6 +247,8 @@ class HerderImpl : public Herder
     VirtualTimer mTriggerTimer;
 
     VirtualTimer mOutOfSyncTimer;
+
+    VirtualTimer mTxSetGarbageCollectTimer;
 
     Application& mApp;
     LedgerManager& mLedgerManager;

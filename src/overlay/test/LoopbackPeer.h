@@ -112,7 +112,7 @@ class LoopbackPeer : public Peer
         return mDropReason;
     }
 
-    std::array<std::deque<QueuedOutboundMessage>, 2>&
+    std::array<std::deque<QueuedOutboundMessage>, 4>&
     getQueues()
     {
         return mOutboundQueues;
@@ -129,7 +129,6 @@ class LoopbackPeer : public Peer
     std::string getIP() const override;
 
     using Peer::addMsgAndMaybeTrimQueue;
-    using Peer::flowControlEnabled;
     using Peer::sendAuth;
     using Peer::sendAuthenticatedMessage;
     using Peer::sendMessage;

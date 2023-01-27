@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "herder/TxQueueLimiter.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/TransactionFrame.h"
@@ -30,7 +31,6 @@ namespace hcnet
 {
 
 class Application;
-class TxQueueLimiter;
 
 /**
  * TransactionQueue keeps received transactions that are valid and have not yet
@@ -142,6 +142,7 @@ class TransactionQueue
 
     size_t countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
+    TransactionFrameBaseConstPtr getTx(Hash const& hash) const;
 
     TxSetFrame::Transactions getTransactions(LedgerHeader const& lcl) const;
 
@@ -156,6 +157,7 @@ class TransactionQueue
     void rebroadcast();
 
     void shutdown();
+    size_t getMaxQueueSizeOps() const;
 
   private:
     /**
@@ -192,10 +194,11 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
-    size_t mBroadcastOpCarryover{0};
+    std::vector<uint32_t> mBroadcastOpCarryover;
     VirtualTimer mBroadcastTimer;
 
-    size_t getMaxOpsToFloodThisPeriod() const;
+    std::pair<uint32_t, std::optional<uint32_t>>
+    getMaxOpsToFloodThisPeriod() const;
     bool broadcastSome();
     void broadcast(bool fromCallback);
     // broadcasts a single transaction
@@ -209,7 +212,8 @@ class TransactionQueue
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
-                     TimestampedTransactions::iterator& oldTxIter);
+                     TimestampedTransactions::iterator& oldTxIter,
+                     std::vector<std::pair<TxStackPtr, bool>>& txsToEvict);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
@@ -225,13 +229,16 @@ class TransactionQueue
     std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
     UnorderedMap<AssetPair, uint32_t, AssetPairHash> mArbitrageFloodDamping;
 
+    UnorderedMap<Hash, TransactionFrameBasePtr> mKnownTxHashes;
+
     size_t mBroadcastSeed;
 
-    friend struct TxQueueTracker;
+    friend class TxQueueTracker;
 
 #ifdef BUILD_TESTS
   public:
     size_t getQueueSizeOps() const;
+    std::optional<int64_t> getInQueueSeqNum(AccountID const& account) const;
     std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
 #endif
 };

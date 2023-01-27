@@ -474,20 +474,66 @@ struct LiquidityPoolWithdrawOp
     int64 minAmountB; // minimum amount of second asset to withdraw
 };
 
-enum HostFunction
+enum HostFunctionType
 {
-    HOST_FN_CALL = 0,
-    HOST_FN_CREATE_CONTRACT = 1
+    HOST_FUNCTION_TYPE_INVOKE_CONTRACT = 0,
+    HOST_FUNCTION_TYPE_CREATE_CONTRACT = 1,
+    HOST_FUNCTION_TYPE_INSTALL_CONTRACT_CODE = 2
+};
+
+enum ContractIDType
+{
+    CONTRACT_ID_FROM_SOURCE_ACCOUNT = 0,
+    CONTRACT_ID_FROM_ED25519_PUBLIC_KEY = 1,
+    CONTRACT_ID_FROM_ASSET = 2
+};
+ 
+enum ContractIDPublicKeyType
+{
+    CONTRACT_ID_PUBLIC_KEY_SOURCE_ACCOUNT = 0,
+    CONTRACT_ID_PUBLIC_KEY_ED25519 = 1
+};
+
+struct InstallContractCodeArgs
+{
+    opaque code<SCVAL_LIMIT>;
+};
+
+union ContractID switch (ContractIDType type)
+{
+case CONTRACT_ID_FROM_SOURCE_ACCOUNT:
+    uint256 salt;
+case CONTRACT_ID_FROM_ED25519_PUBLIC_KEY:
+    struct 
+    {
+        uint256 key;
+        Signature signature;
+        uint256 salt;
+    } fromEd25519PublicKey;
+case CONTRACT_ID_FROM_ASSET:
+    Asset asset;
+};
+
+struct CreateContractArgs
+{
+    ContractID contractID;
+    SCContractCode source;
+};
+
+union HostFunction switch (HostFunctionType type)
+{
+case HOST_FUNCTION_TYPE_INVOKE_CONTRACT:
+    SCVec invokeArgs;
+case HOST_FUNCTION_TYPE_CREATE_CONTRACT:
+    CreateContractArgs createContractArgs;
+case HOST_FUNCTION_TYPE_INSTALL_CONTRACT_CODE:
+    InstallContractCodeArgs installContractCodeArgs;
 };
 
 struct InvokeHostFunctionOp
 {
     // The host function to invoke
     HostFunction function;
-
-    // Parameters to the host function
-    SCVec parameters;
-
     // The footprint for this invocation
     LedgerFootprint footprint;
 };
@@ -577,15 +623,37 @@ case ENVELOPE_TYPE_POOL_REVOKE_OP_ID:
 case ENVELOPE_TYPE_CONTRACT_ID_FROM_ED25519:
     struct
     {
+        Hash networkID;
         uint256 ed25519;
         uint256 salt;
-    } contractID;
+    } ed25519ContractID;
 case ENVELOPE_TYPE_CONTRACT_ID_FROM_CONTRACT:
     struct
     {
-        Hash contractID; //contractID of parent contract
+        Hash networkID;
+        Hash contractID;
         uint256 salt;
-    } childContractID;
+    } contractID;
+case ENVELOPE_TYPE_CONTRACT_ID_FROM_ASSET:
+    struct
+    {
+        Hash networkID;
+        Asset asset;
+    } fromAsset;
+case ENVELOPE_TYPE_CONTRACT_ID_FROM_SOURCE_ACCOUNT:
+    struct
+    {
+        Hash networkID;
+        AccountID sourceAccount;
+        uint256 salt;
+    } sourceAccountContractID;
+case ENVELOPE_TYPE_CREATE_CONTRACT_ARGS:
+    struct
+    {
+        Hash networkID;
+        SCContractCode source;
+        uint256 salt;
+    } createContractArgs;        
 };
 
 enum MemoType
@@ -1642,7 +1710,7 @@ enum InvokeHostFunctionResultCode
 union InvokeHostFunctionResult switch (InvokeHostFunctionResultCode code)
 {
 case INVOKE_HOST_FUNCTION_SUCCESS:
-    void;
+    SCVal success;
 case INVOKE_HOST_FUNCTION_MALFORMED:
 case INVOKE_HOST_FUNCTION_TRAPPED:
     void;

@@ -12,6 +12,7 @@
 #include "overlay/PeerManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestUtils.h"
@@ -136,21 +137,19 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
     auto cfg2 = getTestConfig(1);
 
     auto runTest = [&](std::vector<Config> expectedCfgs,
-                       Peer::FlowControlState expectedState,
-                       bool sendIllegalSendMore = false) {
-        REQUIRE(expectedState != Peer::FlowControlState::DONT_KNOW);
+                       bool expectAuthenticated, bool sendIllegalSendMore) {
         auto app1 = createTestApplication(clock, expectedCfgs[0]);
         auto app2 = createTestApplication(clock, expectedCfgs[1]);
 
         LoopbackPeerConnection conn(*app1, *app2);
         testutil::crankSome(clock);
 
-        if (expectedState == Peer::FlowControlState::ENABLED)
+        auto const dropReason = "unexpected SEND_MORE message";
+
+        if (expectAuthenticated)
         {
             REQUIRE(conn.getInitiator()->isAuthenticated());
             REQUIRE(conn.getAcceptor()->isAuthenticated());
-            REQUIRE(conn.getInitiator()->flowControlEnabled() == expectedState);
-            REQUIRE(conn.getAcceptor()->flowControlEnabled() == expectedState);
             REQUIRE(conn.getInitiator()->checkCapacity(
                 cfg2.PEER_FLOOD_READING_CAPACITY));
             REQUIRE(conn.getAcceptor()->checkCapacity(
@@ -164,17 +163,11 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
                 testutil::crankSome(clock);
                 REQUIRE(!conn.getInitiator()->isConnected());
                 REQUIRE(!conn.getAcceptor()->isConnected());
-                REQUIRE(conn.getAcceptor()->getDropReason() ==
-                        "unexpected SEND_MORE message");
+                REQUIRE(conn.getAcceptor()->getDropReason() == dropReason);
             }
         }
         else
         {
-            auto dropReason =
-                cfg2.OVERLAY_PROTOCOL_VERSION <
-                        Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL
-                    ? "wrong protocol version"
-                    : "must enable flow control";
             REQUIRE(!conn.getInitiator()->isConnected());
             REQUIRE(!conn.getAcceptor()->isConnected());
             REQUIRE(conn.getAcceptor()->getDropReason() == dropReason);
@@ -189,12 +182,12 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
         SECTION("basic")
         {
             // Successfully enabled flow control
-            runTest({cfg1, cfg2}, Peer::FlowControlState::ENABLED, false);
+            runTest({cfg1, cfg2}, true, false);
         }
         SECTION("bad peer")
         {
             // Try to disable flow control after enabling
-            runTest({cfg1, cfg2}, Peer::FlowControlState::ENABLED, true);
+            runTest({cfg1, cfg2}, true, true);
         }
     }
     SECTION("one disables")
@@ -202,14 +195,7 @@ TEST_CASE("loopback peer flow control activation", "[overlay][flowcontrol]")
         // Peer tries to disable flow control during auth
         // Set capacity to 0 so that the peer sends SEND_MORE with numMessages=0
         cfg2.PEER_FLOOD_READING_CAPACITY = 0;
-        runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED);
-    }
-    SECTION("one does not support")
-    {
-        // Peer is not on minimum supported version
-        cfg2.OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL - 1;
-        runTest({cfg1, cfg2}, Peer::FlowControlState::DISABLED);
+        runTest({cfg1, cfg2}, false, false);
     }
 }
 
@@ -233,11 +219,6 @@ TEST_CASE("drop peers that dont respect capacity", "[overlay][flowcontrol]")
     testutil::crankSome(clock);
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
-
-    REQUIRE(conn.getInitiator()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-    REQUIRE(conn.getAcceptor()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
 
     // tx is invalid, but it doesn't matter
     HcnetMessage msg;
@@ -275,11 +256,6 @@ TEST_CASE("drop idle flow-controlled peers", "[overlay][flowcontrol]")
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
 
-    REQUIRE(conn.getInitiator()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-    REQUIRE(conn.getAcceptor()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-
     HcnetMessage msg;
     msg.type(TRANSACTION);
     REQUIRE(conn.getAcceptor()->getOutboundCapacity() == 1);
@@ -313,11 +289,6 @@ TEST_CASE("drop peers that overflow capacity", "[overlay][flowcontrol]")
     testutil::crankSome(clock);
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
-
-    REQUIRE(conn.getInitiator()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
-    REQUIRE(conn.getAcceptor()->flowControlEnabled() ==
-            Peer::FlowControlState::ENABLED);
 
     // Set outbound capacity close to max on initiator
     auto& cap = conn.getInitiator()->getOutboundCapacity();
@@ -403,10 +374,14 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
 
     auto& scpQueue = conn->getAcceptor()->getQueues()[0];
     auto& txQueue = conn->getAcceptor()->getQueues()[1];
+    auto& demandQueue = conn->getAcceptor()->getQueues()[2];
+    auto& advertQueue = conn->getAcceptor()->getQueues()[3];
 
     // Clear queues for testing
     scpQueue.clear();
     txQueue.clear();
+    demandQueue.clear();
+    advertQueue.clear();
 
     auto lcl = node->getLedgerManager().getLastClosedLedgerNum();
     HerderImpl& herder = *static_cast<HerderImpl*>(&node->getHerder());
@@ -503,6 +478,42 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
                                     }));
             }
         }
+    }
+    SECTION("advert demand limit reached")
+    {
+        uint32_t limit = node->getLedgerManager().getLastMaxTxSetSizeOps();
+        for (uint32_t i = 0; i < limit + 10; ++i)
+        {
+            HcnetMessage adv, dem, txn;
+            adv.type(FLOOD_ADVERT);
+            dem.type(FLOOD_DEMAND);
+            adv.floodAdvert().txHashes.push_back(xdrSha256(txn));
+            dem.floodDemand().txHashes.push_back(xdrSha256(txn));
+            peer->addMsgAndMaybeTrimQueue(
+                std::make_shared<HcnetMessage const>(adv));
+            peer->addMsgAndMaybeTrimQueue(
+                std::make_shared<HcnetMessage const>(dem));
+        }
+
+        REQUIRE(advertQueue.size() == limit);
+        REQUIRE(demandQueue.size() == limit);
+
+        HcnetMessage adv, dem, txn;
+        adv.type(FLOOD_ADVERT);
+        dem.type(FLOOD_DEMAND);
+        for (auto i = 0; i < 2; i++)
+        {
+            adv.floodAdvert().txHashes.push_back(xdrSha256(txn));
+            dem.floodDemand().txHashes.push_back(xdrSha256(txn));
+        }
+
+        peer->addMsgAndMaybeTrimQueue(
+            std::make_shared<HcnetMessage const>(adv));
+        peer->addMsgAndMaybeTrimQueue(
+            std::make_shared<HcnetMessage const>(dem));
+
+        REQUIRE(advertQueue.size() == limit - 1);
+        REQUIRE(demandQueue.size() == limit - 1);
     }
 }
 
@@ -832,7 +843,8 @@ TEST_CASE("allow inbound pending peers up to max", "[overlay][connections]")
     REQUIRE(conn4.getInitiator()->getState() == Peer::CONNECTED);
     REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
 
-    testutil::crankSome(clock);
+    // Must wait for RECURRENT_TIMER_PERIOD
+    testutil::crankFor(clock, std::chrono::seconds(5));
 
     REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
     REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
@@ -903,7 +915,8 @@ TEST_CASE("allow inbound pending peers over max if possibly preferred",
     REQUIRE(conn4.getInitiator()->getState() == Peer::CONNECTED);
     REQUIRE(conn4.getAcceptor()->getState() == Peer::CONNECTED);
 
-    testutil::crankSome(clock);
+    // Must wait for RECURRENT_TIMER_PERIOD
+    testutil::crankFor(clock, std::chrono::seconds(5));
 
     REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
     REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
@@ -973,7 +986,8 @@ TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
     REQUIRE(conn4.getAcceptor()->getState() == Peer::CONNECTED);
     conn2.getInitiator()->setCorked(true);
 
-    testutil::crankSome(clock);
+    // Must wait for RECURRENT_TIMER_PERIOD
+    testutil::crankFor(clock, std::chrono::seconds(5));
 
     REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
     REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
@@ -1215,14 +1229,15 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
             // Straggler keeps asking for peers once per second -- this is
             // easy traffic to fake-generate -- but not accepting response
             // messages in a timely fashion.
-            sendTimer.expires_from_now(std::chrono::seconds(1));
+            std::chrono::seconds const dur{1};
+            sendTimer.expires_from_now(dur);
             sendTimer.async_wait([straggler](asio::error_code const& error) {
                 if (!error)
                 {
                     straggler->sendGetPeers();
                 }
             });
-            clock.crank(false);
+            testutil::crankFor(clock, dur);
         }
         LOG_INFO(DEFAULT_LOG, "loop complete, clock.now() = {}",
                  clock.now().time_since_epoch().count());
@@ -1496,6 +1511,70 @@ TEST_CASE("inbounds nodes can be promoted to ouboundvalid",
     simulation->crankForAtLeast(std::chrono::seconds{3}, true);
 }
 
+TEST_CASE("flow control when out of sync", "[overlay][flowcontrol]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(vNode1NodeID);
+
+    auto configs = std::vector<Config>{};
+    for (auto i = 0; i < 2; i++)
+    {
+        auto cfg = getTestConfig(i + 1);
+        cfg.PEER_FLOOD_READING_CAPACITY = 1;
+        cfg.PEER_READING_CAPACITY = 1;
+        cfg.FLOW_CONTROL_SEND_MORE_BATCH_SIZE = 1;
+        if (i == 1)
+        {
+            cfg.FORCE_SCP = false;
+        }
+        configs.push_back(cfg);
+    }
+
+    auto node = simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
+    auto outOfSyncNode =
+        simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
+    simulation->startAllNodes();
+
+    // Node1 closes a few ledgers, while Node2 falls behind and goes out of sync
+    simulation->crankUntil(
+        [&]() {
+            return node->getLedgerManager().getLastClosedLedgerNum() >= 15;
+        },
+        50 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    REQUIRE(!outOfSyncNode->getLedgerManager().isSynced());
+    simulation->addConnection(vNode2NodeID, vNode1NodeID);
+
+    // Generate transactions traffic, which the out of sync node will drop
+    auto& loadGen = node->getLoadGenerator();
+    loadGen.generateLoad(
+        GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 200,
+                                                /* txRate */ 1,
+                                                /* batchSize */ 1));
+
+    auto& loadGenDone =
+        node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
+    auto currLoadGenCount = loadGenDone.count();
+
+    simulation->crankUntil(
+        [&]() { return loadGenDone.count() > currLoadGenCount; },
+        200 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Confirm Node2 is still connected to Node1 and did not get dropped
+    auto conn = simulation->getLoopbackConnection(vNode2NodeID, vNode1NodeID);
+    REQUIRE(conn);
+    REQUIRE(conn->getInitiator()->isConnected());
+    REQUIRE(conn->getAcceptor()->isConnected());
+}
+
 TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -1546,9 +1625,10 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
         // Generate a bit of load to flood transactions, make sure nodes can
         // close ledgers properly
         auto& loadGen = node->getLoadGenerator();
-        loadGen.generateLoad(LoadGenMode::CREATE, /* nAccounts */ 10, 0, 0,
-                             /*txRate*/ 1,
-                             /*batchSize*/ 1, std::chrono::seconds(0), 0);
+        loadGen.generateLoad(
+            GeneratedLoadConfig::createAccountsLoad(/* nAccounts */ 10,
+                                                    /* txRate */ 1,
+                                                    /* batchSize */ 1));
 
         auto& loadGenDone =
             node->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -1561,17 +1641,6 @@ TEST_CASE("overlay flow control", "[overlay][flowcontrol]")
     SECTION("one peer disables flow control")
     {
         configs[2].PEER_FLOOD_READING_CAPACITY = 0;
-        setupSimulation();
-        REQUIRE_THROWS_AS(
-            simulation->crankUntil(
-                [&] { return simulation->haveAllExternalized(2, 1); },
-                3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false),
-            std::runtime_error);
-    }
-    SECTION("one peer doesn't support flow control")
-    {
-        configs[2].OVERLAY_PROTOCOL_VERSION =
-            Peer::FIRST_VERSION_SUPPORTING_FLOW_CONTROL - 1;
         setupSimulation();
         REQUIRE_THROWS_AS(
             simulation->crankUntil(
@@ -1607,7 +1676,11 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
 
     om.start();
 
-    testutil::crankSome(clock);
+    // Must wait 2 seconds as `OverlayManagerImpl::start()`
+    // sets a 2-second timer.
+    // `crankSome` may not work if other timers fire before that.
+    // (e.g., pull-mode advert timer)
+    testutil::crankFor(clock, std::chrono::seconds(2));
 
     REQUIRE(peerManager.load(localhost(1)).second);
     REQUIRE(peerManager.load(localhost(2)).second);
@@ -1753,5 +1826,546 @@ TEST_CASE("generalized tx sets are not sent to non-upgraded peers",
     {
         runTest(true);
     }
+}
+
+TEST_CASE("overlay pull mode", "[overlay][pullmode]")
+{
+    VirtualClock clock;
+    auto const numNodes = 3;
+    std::vector<std::shared_ptr<Application>> apps;
+    std::chrono::milliseconds const epsilon{1};
+
+    for (auto i = 0; i < numNodes; i++)
+    {
+        Config cfg = getTestConfig(i);
+        cfg.FLOOD_DEMAND_BACKOFF_DELAY_MS = std::chrono::milliseconds(200);
+        cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(200);
+        cfg.ENABLE_PULL_MODE = true;
+        // Using a small tx set size such as 50 may lead to an unexpectedly
+        // small advert/demand size limit.
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+        apps.push_back(createTestApplication(clock, cfg));
+    }
+
+    std::vector<std::shared_ptr<LoopbackPeerConnection>> connections;
+    for (auto i = 0; i < numNodes; i++)
+    {
+        connections.push_back(std::make_shared<LoopbackPeerConnection>(
+            *apps[i], *apps[(i + 1) % numNodes]));
+    }
+    testutil::crankFor(clock, std::chrono::seconds(5));
+    for (auto& conn : connections)
+    {
+        REQUIRE(conn->getInitiator()->isAuthenticated());
+        REQUIRE(conn->getAcceptor()->isAuthenticated());
+    }
+
+    auto createTxn = [](auto n) {
+        HcnetMessage txn;
+        txn.type(TRANSACTION);
+        Memo memo(MEMO_TEXT);
+        memo.text() = "tx" + std::to_string(n);
+        txn.transaction().v0().tx.memo = memo;
+
+        return std::make_shared<HcnetMessage>(txn);
+    };
+
+    auto createAdvert = [](auto txns) {
+        HcnetMessage adv;
+        adv.type(FLOOD_ADVERT);
+        for (auto const& txn : txns)
+        {
+            adv.floodAdvert().txHashes.push_back(xdrSha256(txn->transaction()));
+        }
+        return std::make_shared<HcnetMessage>(adv);
+    };
+
+    // +-------------+------------+---------+
+    // |             | Initiator  | Acceptor|
+    // +-------------+------------+---------+
+    // |Connection 0 |     0      |    1    |
+    // |Connection 1 |     1      |    2    |
+    // |Connection 2 |     2      |    0    |
+    // +-------------+------------+---------+
+
+    // `links[i][j]->sendMessage` is an easy way to send a message
+    // from node `i` to node `j`.
+    std::shared_ptr<LoopbackPeer> links[numNodes][numNodes];
+    for (auto i = 0; i < numNodes; i++)
+    {
+        auto j = (i + 1) % 3;
+        links[i][j] = connections[i]->getInitiator();
+        links[j][i] = connections[i]->getAcceptor();
+    }
+
+    SECTION("ignore duplicated adverts")
+    {
+        auto tx = createTxn(0);
+        auto adv =
+            createAdvert(std::vector<std::shared_ptr<HcnetMessage>>{tx});
+
+        // Node 0 advertises tx 0 to Node 2
+        links[0][2]->sendMessage(adv, false);
+        links[0][2]->sendMessage(adv, false);
+        links[0][2]->sendMessage(adv, false);
+
+        // Give enough time to call `demand` multiple times
+        testutil::crankFor(
+            clock, 3 * apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS + epsilon);
+
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 1);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 1);
+
+        // 10 seconds is long enough for a few timeouts to fire
+        // but not long enough for the pending demand record to drop.
+        testutil::crankFor(clock, std::chrono::seconds(10));
+
+        links[0][2]->sendMessage(adv, false);
+
+        // Give enough time to call `demand` multiple times
+        testutil::crankFor(
+            clock, 3 * apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS + epsilon);
+
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 1);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 1);
+    }
+
+    SECTION("do not advertise to peers that know about tx")
+    {
+        auto root = TestAccount::createRoot(*apps[0]);
+        auto tx = root.tx({txtest::createAccount(
+            txtest::getAccount("acc").getPublicKey(), 100)});
+        auto adv = createAdvert(std::vector<std::shared_ptr<HcnetMessage>>{
+            std::make_shared<HcnetMessage>(tx->toHcnetMessage())});
+        auto twoNodesRecvTx = [&]() {
+            // Node0 and Node1 know about tx0 and will advertise it to Node2
+            REQUIRE(apps[0]->getHerder().recvTransaction(tx, true) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            REQUIRE(apps[1]->getHerder().recvTransaction(tx, true) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        };
+
+        SECTION("pull mode enabled on all")
+        {
+            twoNodesRecvTx();
+
+            // Give enough time for Node2 to issue a demand and receive tx0
+            testutil::crankFor(clock, std::chrono::seconds(1));
+
+            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 1);
+            // Either Node0 or Node1 fulfill the demand
+            auto fulfilled =
+                overlaytestutils::getFulfilledDemandCount(apps[0]) +
+                overlaytestutils::getFulfilledDemandCount(apps[1]);
+            REQUIRE(fulfilled == 1);
+            // After receiving a transaction, Node2 does not advertise it to
+            // anyone because others already know about it
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "flood-advert"})
+                        .count() == 2);
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "transaction"})
+                        .count() == 1);
+            REQUIRE(overlaytestutils::getAdvertisedHashCount(apps[2]) == 0);
+        }
+        SECTION("pull mode disabled on Node3")
+        {
+            // Add another node with pull mode disabled, so it will flood
+            // transactions directly
+            Config cfg = getTestConfig(3);
+            cfg.ENABLE_PULL_MODE = false;
+            apps.push_back(createTestApplication(clock, cfg));
+            connections.push_back(
+                std::make_shared<LoopbackPeerConnection>(*apps[2], *apps[3]));
+            connections.push_back(
+                std::make_shared<LoopbackPeerConnection>(*apps[0], *apps[3]));
+            connections.push_back(
+                std::make_shared<LoopbackPeerConnection>(*apps[1], *apps[3]));
+
+            testutil::crankFor(clock, std::chrono::seconds(5));
+
+            // Node0 and Node1 know about tx0 and will advertise it to Node2
+            // Node3 will flood the transaction directly
+            twoNodesRecvTx();
+            REQUIRE(apps[3]->getHerder().recvTransaction(tx, true) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+
+            // Give enough time for Node2 to receive tx0 from Node3 and adverts
+            // from Node0 and Node1
+            testutil::crankFor(clock, std::chrono::seconds(1));
+
+            // No demands sent, no fulfilling occurs
+            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 0);
+            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[0]) == 0);
+            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[1]) == 0);
+            REQUIRE(overlaytestutils::getFulfilledDemandCount(apps[3]) == 0);
+            // After receiving a transaction, Node2 does not advertise/broadcast
+            // it to anyone because others already know about it
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "flood-advert"})
+                        .count() == 2);
+            REQUIRE(apps[2]
+                        ->getMetrics()
+                        .NewTimer({"overlay", "recv", "transaction"})
+                        .count() == 1);
+            REQUIRE(overlaytestutils::getAdvertisedHashCount(apps[2]) == 0);
+        }
+    }
+
+    SECTION("sanity check - demand")
+    {
+        auto tx0 = createTxn(0);
+        auto tx1 = createTxn(1);
+        auto adv0 =
+            createAdvert(std::vector<std::shared_ptr<HcnetMessage>>{tx0});
+        auto adv1 =
+            createAdvert(std::vector<std::shared_ptr<HcnetMessage>>{tx1});
+
+        // Node 0 advertises tx 0 to Node 2
+        links[0][2]->sendMessage(adv0, false);
+        // Node 1 advertises tx 1 to Node 2
+        links[1][2]->sendMessage(adv1, false);
+
+        // Give enough time to:
+        // 1) call `demand`, and
+        // 2) send the demands out.
+        testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
+                                      epsilon);
+
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 2);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 1);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 1);
+    }
+
+    SECTION("exact same advert from two peers")
+    {
+        std::vector<std::shared_ptr<HcnetMessage>> txns;
+        auto const numTxns = 5;
+        txns.reserve(numTxns);
+        for (auto i = 0; i < numTxns; i++)
+        {
+            txns.push_back(createTxn(i));
+        }
+        auto adv = createAdvert(txns);
+
+        // Both Node 0 and Node 1 advertise {tx0, tx1, ..., tx5} to Node 2
+        links[0][2]->sendMessage(adv, false);
+        links[1][2]->sendMessage(adv, false);
+
+        // Give enough time to:
+        // 1) call `demand`, and
+        // 2) send the demands out.
+        testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
+                                      epsilon);
+
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 2);
+        {
+            // Node 2 is supposed to split the 5 demands evenly between Node 0
+            // and Node 1 with no overlap.
+            auto n0 = overlaytestutils::getUnknownDemandCount(apps[0]);
+            auto n1 = overlaytestutils::getUnknownDemandCount(apps[1]);
+            REQUIRE(std::min(n0, n1) == 2);
+            REQUIRE(std::max(n0, n1) == 3);
+            REQUIRE((n0 + n1) == 5);
+        }
+
+        // Wait long enough so the first round of demands expire and the second
+        // round of demands get sent out.
+        testutil::crankFor(
+            clock, std::max(apps[2]->getConfig().FLOOD_DEMAND_BACKOFF_DELAY_MS,
+                            apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS) +
+                       epsilon);
+
+        // Now both nodes should have gotten demands for all the 5 txn hashes.
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 4);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 5);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 5);
+    }
+
+    SECTION("overlapping adverts")
+    {
+        auto tx0 = createTxn(0);
+        auto tx1 = createTxn(1);
+        auto tx2 = createTxn(2);
+        auto tx3 = createTxn(3);
+        auto adv0 = createAdvert(
+            std::vector<std::shared_ptr<HcnetMessage>>{tx0, tx1, tx3});
+        auto adv1 = createAdvert(
+            std::vector<std::shared_ptr<HcnetMessage>>{tx0, tx2, tx3});
+
+        // Node 0 advertises {tx0, tx1, tx3} to Node 2
+        links[0][2]->sendMessage(adv0, false);
+        // Node 1 advertises {tx0, tx2, tx3} to Node 2
+        links[1][2]->sendMessage(adv1, false);
+
+        // Give enough time to:
+        // 1) call `demand`, and
+        // 2) send the demands out.
+        testutil::crankFor(clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS +
+                                      epsilon);
+
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 2);
+
+        {
+            // Node 0 should get a demand for tx 1 and one of {tx 0, tx 3}.
+            // Node 1 should get a demand for tx 2 and one of {tx 0, tx 3}.
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 2);
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 2);
+        }
+
+        // Wait long enough so the first round of demands expire and the second
+        // round of demands get sent out.
+        testutil::crankFor(clock,
+                           apps[2]->getConfig().FLOOD_DEMAND_BACKOFF_DELAY_MS +
+                               epsilon);
+
+        // Node 0 should get a demand for the other member of {tx 0, tx 3}.
+        // The same for Node 1.
+        REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == 4);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) == 3);
+        REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) == 3);
+    }
+
+    SECTION("randomize peers")
+    {
+        auto peer0 = 0;
+        auto peer1 = 0;
+        auto const numRounds = 300;
+        auto const numTxns = 5;
+        for (auto i = 0; i < numRounds; i++)
+        {
+            std::vector<std::shared_ptr<HcnetMessage>> txns;
+            txns.reserve(numTxns);
+            for (auto j = 0; j < numTxns; j++)
+            {
+                txns.push_back(createTxn(i * numTxns + j));
+            }
+            auto adv = createAdvert(txns);
+
+            // Both Node 0 and Node 1 advertise {tx0, tx1, ..., tx5} to Node 2
+            links[0][2]->sendMessage(adv, false);
+            links[1][2]->sendMessage(adv, false);
+
+            // Give enough time to:
+            // 1) call `demand`, and
+            // 2) send the demands out.
+            testutil::crankFor(
+                clock, apps[2]->getConfig().FLOOD_DEMAND_PERIOD_MS + epsilon);
+
+            REQUIRE(overlaytestutils::getSentDemandCount(apps[2]) == i * 4 + 2);
+            {
+                // Node 2 should split the 5 txn hashes
+                // evenly among Node 0 and Node 1.
+                auto n0 = overlaytestutils::getUnknownDemandCount(apps[0]);
+                auto n1 = overlaytestutils::getUnknownDemandCount(apps[1]);
+                REQUIRE(std::max(n0, n1) == i * numTxns + 3);
+                REQUIRE(std::min(n0, n1) == i * numTxns + 2);
+                if (n0 < n1)
+                {
+                    peer1++;
+                }
+                else
+                {
+                    peer0++;
+                }
+            }
+
+            // Wait long enough so the first round of demands expire and the
+            // second round of demands get sent out.
+            testutil::crankFor(
+                clock,
+                apps[2]->getConfig().FLOOD_DEMAND_BACKOFF_DELAY_MS + epsilon);
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[0]) ==
+                    (i + 1) * numTxns);
+            REQUIRE(overlaytestutils::getUnknownDemandCount(apps[1]) ==
+                    (i + 1) * numTxns);
+        }
+
+        // In each of the 300 rounds, both peer0 and peer1 have
+        // a 50% chance of getting the demand with 3 txns instead of 2.
+        // Statistically speaking, this is the same as coin flips.
+        // After 300 flips, the chance that we have more than 200 heads
+        // is 0.000000401%.
+        REQUIRE(std::max(peer0, peer1) <= numRounds * 2 / 3);
+    }
+    for (auto& app : apps)
+    {
+        testutil::shutdownWorkScheduler(*app);
+    }
+}
+
+TEST_CASE("pull mode enable only if both request", "[overlay][pullmode]")
+{
+    VirtualClock clock;
+    auto test = [&](auto node1, auto node2) {
+        Config cfg1 = getTestConfig(1);
+        cfg1.ENABLE_PULL_MODE = node1;
+        auto app1 = createTestApplication(clock, cfg1);
+        Config cfg2 = getTestConfig(2);
+        cfg2.ENABLE_PULL_MODE = node2;
+        auto app2 = createTestApplication(clock, cfg2);
+
+        auto conn = std::make_shared<LoopbackPeerConnection>(*app1, *app2);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn->getInitiator()->isAuthenticated());
+        REQUIRE(conn->getAcceptor()->isAuthenticated());
+        REQUIRE(conn->getInitiator()->isPullModeEnabled() == false);
+        REQUIRE(conn->getAcceptor()->isPullModeEnabled() == false);
+
+        SECTION("peer does not follow the protocol")
+        {
+            HcnetMessage adv, emptyMsg;
+            adv.type(FLOOD_ADVERT);
+            adv.floodAdvert().txHashes.push_back(xdrSha256(emptyMsg));
+            conn->getInitiator()->sendMessage(
+                std::make_shared<HcnetMessage>(adv));
+            testutil::crankSome(clock);
+
+            if (node1 && node2)
+            {
+                REQUIRE(conn->getInitiator()->isAuthenticated());
+                REQUIRE(conn->getAcceptor()->isAuthenticated());
+            }
+            else
+            {
+                REQUIRE(!conn->getInitiator()->isConnected());
+                REQUIRE(!conn->getAcceptor()->isConnected());
+                REQUIRE(conn->getAcceptor()->getDropReason() ==
+                        "Peer sent FLOOD_ADVERT, but pull mode is disabled");
+            }
+        }
+    };
+    SECTION("acceptor disabled pull mode")
+    {
+        test(true, false);
+    }
+    SECTION("initiator disabled pull mode")
+    {
+        test(false, true);
+    }
+    SECTION("both disabled pull mode")
+    {
+        test(false, false);
+    }
+}
+
+TEST_CASE("overlay pull mode loadgen", "[overlay][pullmode][acceptance]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(vNode1NodeID);
+    qSet.validators.push_back(vNode2NodeID);
+
+    auto configs = std::vector<Config>{};
+
+    for (auto i = 0; i < 2; i++)
+    {
+        auto cfg = getTestConfig(i + 1);
+
+        cfg.ENABLE_PULL_MODE = true;
+        configs.push_back(cfg);
+    }
+
+    Application::pointer node1 =
+        simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
+    Application::pointer node2 =
+        simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
+
+    simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&] { return simulation->haveAllExternalized(2, 1); },
+        3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    auto& loadGen = node1->getLoadGenerator();
+
+    // Create 5 txns each creating one new account.
+    // Set a really high tx rate so we create the txns right away.
+    auto const numAccounts = 5;
+    loadGen.generateLoad(GeneratedLoadConfig::createAccountsLoad(
+        /* nAccounts */ numAccounts,
+        /* txRate */ 1000,
+        /* batchSize */ 1));
+
+    // Let the network close multiple ledgers.
+    // If the logic to advertise or demand incorrectly sends more than
+    // they're supposed to (e.g., advertise the same txn twice),
+    // then it'll likely happen within a few ledgers.
+    simulation->crankUntil(
+        [&] { return simulation->haveAllExternalized(5, 1); },
+        10 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    // Node 1 advertised 5 txn hashes to each of Node 2 and Node 3.
+    REQUIRE(overlaytestutils::getAdvertisedHashCount(node1) == numAccounts);
+    REQUIRE(overlaytestutils::getAdvertisedHashCount(node2) == 0);
+
+    // As this is a "happy path", there should be no unknown demands.
+    REQUIRE(overlaytestutils::getUnknownDemandCount(node1) == 0);
+    REQUIRE(overlaytestutils::getUnknownDemandCount(node2) == 0);
+}
+
+TEST_CASE("overlay pull mode with many peers",
+          "[overlay][pullmode][acceptance]")
+{
+    VirtualClock clock;
+
+    // Defined in src/overlay/OverlayManagerImpl.h.
+    auto const maxRetry = 15;
+
+    auto const numNodes = maxRetry + 5;
+    std::vector<std::shared_ptr<Application>> apps;
+
+    for (auto i = 0; i < numNodes; i++)
+    {
+        Config cfg = getTestConfig(i);
+        cfg.ENABLE_PULL_MODE = true;
+        apps.push_back(createTestApplication(clock, cfg));
+    }
+
+    std::vector<std::shared_ptr<LoopbackPeerConnection>> connections;
+    // Every node is connected to node 0.
+    for (auto i = 1; i < numNodes; i++)
+    {
+        connections.push_back(
+            std::make_shared<LoopbackPeerConnection>(*apps[i], *apps[0]));
+    }
+
+    testutil::crankFor(clock, std::chrono::seconds(5));
+    for (auto& conn : connections)
+    {
+        REQUIRE(conn->getInitiator()->isAuthenticated());
+        REQUIRE(conn->getAcceptor()->isAuthenticated());
+    }
+
+    HcnetMessage adv, emptyMsg;
+    adv.type(FLOOD_ADVERT);
+    // As we will never fulfill the demand in this test,
+    // we won't even bother hashing an actual txn envelope.
+    adv.floodAdvert().txHashes.push_back(xdrSha256(emptyMsg));
+    for (auto& conn : connections)
+    {
+        // Everyone advertises to Node 0.
+        conn->getInitiator()->sendMessage(
+            std::make_shared<HcnetMessage>(adv));
+    }
+
+    // Let it crank for 10 minutes.
+    // If we're ever going to retry too many times,
+    // it's likely that they'll happen in 10 minutes.
+    testutil::crankFor(clock, std::chrono::minutes(10));
+
+    REQUIRE(overlaytestutils::getSentDemandCount(apps[0]) == maxRetry);
 }
 }

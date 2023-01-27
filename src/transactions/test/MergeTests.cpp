@@ -643,8 +643,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 auto r = closeLedger(*app, {tx1, txMinSeqNumSrc}, true);
 
-                REQUIRE(tx1->getResult()
-                            .result.results()[0]
+                REQUIRE(r[0].first.result.result.results()[0]
                             .tr()
                             .accountMergeResult()
                             .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
@@ -665,8 +664,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 auto r = closeLedger(*app, {tx1, tx2, tx3, txMinSeqNumSrc});
 
-                REQUIRE(tx1->getResult()
-                            .result.results()[0]
+                REQUIRE(r[0].first.result.result.results()[0]
                             .tr()
                             .accountMergeResult()
                             .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
@@ -684,8 +682,7 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                 auto r = closeLedger(*app, {tx1, tx2}, true);
 
                 checkTx(0, r, txSUCCESS);
-                REQUIRE(tx2->getResult()
-                            .result.results()[0]
+                REQUIRE(r[1].first.result.result.results()[0]
                             .tr()
                             .accountMergeResult()
                             .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
@@ -753,7 +750,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMeta txm(2);
+                    TransactionMetaFrame txm(
+                        ltx.loadHeader().current().ledgerVersion);
                     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
@@ -818,7 +816,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMeta txm(2);
+                    TransactionMetaFrame txm(
+                        ltx.loadHeader().current().ledgerVersion);
                     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                     REQUIRE(tx->apply(*app, ltx, txm));
 
@@ -889,7 +888,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
                         {b1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    TransactionMeta txm(2);
+                    TransactionMetaFrame txm(
+                        ltx.loadHeader().current().ledgerVersion);
                     REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                     REQUIRE(!tx->apply(*app, ltx, txm));
                     REQUIRE(tx->getResult()
@@ -911,7 +911,8 @@ TEST_CASE_VERSIONS("merge", "[tx][merge]")
 
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        TransactionMeta txm(2);
+                        TransactionMetaFrame txm(
+                            ltx.loadHeader().current().ledgerVersion);
                         REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                         REQUIRE(tx->apply(*app, ltx, txm));
 

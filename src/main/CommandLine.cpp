@@ -20,6 +20,9 @@
 #include "main/HcnetCoreVersion.h"
 #include "main/dumpxdr.h"
 #include "overlay/OverlayManager.h"
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+#include "rust/RustBridge.h"
+#endif
 #include "scp/QuorumSetUtils.h"
 #include "src/catchup/simulation/TxSimApplyTransactionsWork.h"
 #include "src/transactions/simulation/TxSimScaleBucketlistWork.h"
@@ -362,6 +365,20 @@ maybeEnableInMemoryMode(Config& config, bool inMemory, uint32_t startAtLedger,
 }
 
 clara::Opt
+ledgerHashParser(std::string& ledgerHash)
+{
+    return clara::Opt{ledgerHash, "HASH"}["--trusted-hash"](
+        "Hash of the ledger to catchup to");
+}
+
+clara::Opt
+forceUntrustedCatchup(bool& force)
+{
+    return clara::Opt{force}["--force-untrusted-catchup"](
+        "force unverified catchup");
+}
+
+clara::Opt
 inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
@@ -471,7 +488,8 @@ runWithHelp(CommandLineArgs const& args,
 }
 
 CatchupConfiguration
-parseCatchup(std::string const& catchup, bool extraValidation)
+parseCatchup(std::string const& catchup, std::string const& hash,
+             bool extraValidation)
 {
     auto static errorMessage =
         "catchup value should be passed as <DESTINATION-LEDGER/LEDGER-COUNT>, "
@@ -489,8 +507,18 @@ parseCatchup(std::string const& catchup, bool extraValidation)
         auto mode = extraValidation
                         ? CatchupConfiguration::Mode::OFFLINE_COMPLETE
                         : CatchupConfiguration::Mode::OFFLINE_BASIC;
-        return {parseLedger(catchup.substr(0, separatorIndex)),
-                parseLedgerCount(catchup.substr(separatorIndex + 1)), mode};
+        auto ledger = parseLedger(catchup.substr(0, separatorIndex));
+        auto count = parseLedgerCount(catchup.substr(separatorIndex + 1));
+        if (hash.empty())
+        {
+            return CatchupConfiguration(ledger, count, mode);
+        }
+        else
+        {
+            return CatchupConfiguration(
+                {ledger, std::make_optional<Hash>(hexToBin256(hash))}, count,
+                mode);
+        }
     }
     catch (std::exception&)
     {
@@ -696,14 +724,14 @@ runCatchup(CommandLineArgs const& args)
     bool completeValidation = false;
     bool inMemory = false;
     bool forceBack = false;
-    uint32_t startAtLedger = 0;
-    std::string startAtHash;
+    bool forceUntrusted = false;
+    std::string hash;
     std::string stream;
 
     auto validateCatchupString = [&] {
         try
         {
-            parseCatchup(catchupString, completeValidation);
+            parseCatchup(catchupString, hash, completeValidation);
             return std::string{};
         }
         catch (std::runtime_error& e)
@@ -756,7 +784,7 @@ runCatchup(CommandLineArgs const& args)
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation), inMemoryParser(inMemory),
-         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash),
+         ledgerHashParser(hash), forceUntrustedCatchup(forceUntrusted),
          metadataOutputStreamParser(stream), forceBackParser(forceBack)},
         [&] {
             auto config = configOption.getConfig();
@@ -777,8 +805,9 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = MAINTENANCE_LEDGER_COUNT;
             }
 
-            maybeEnableInMemoryMode(config, inMemory, startAtLedger,
-                                    startAtHash,
+            // --start-at-ledger and --start-at-hash aren't allowed in catchup,
+            // so pass defaults values
+            maybeEnableInMemoryMode(config, inMemory, 0, "",
                                     /* persistMinimalData */ false);
             maybeSetMetadataOutputStream(config, stream);
 
@@ -794,7 +823,15 @@ runCatchup(CommandLineArgs const& args)
                 }
 
                 CatchupConfiguration cc =
-                    parseCatchup(catchupString, completeValidation);
+                    parseCatchup(catchupString, hash, completeValidation);
+
+                if (!trustedCheckpointHashesFile.empty() && !hash.empty())
+                {
+                    throw std::runtime_error(
+                        "Either --trusted-checkpoint-hashes or --trusted-hash "
+                        "should be specified, but not both");
+                }
+
                 if (!trustedCheckpointHashesFile.empty())
                 {
                     auto const& hm = app->getHistoryManager();
@@ -862,6 +899,15 @@ runCatchup(CommandLineArgs const& args)
                     app->resetLedgerState();
                     lm.startNewLedger();
                 }
+                else if (hash.empty() && !forceUntrusted)
+                {
+                    CLOG_WARNING(
+                        History,
+                        "Unsafe command: use --trusted-checkpoint-hashes or "
+                        "--trusted-hash to ensure catchup integrity. If you "
+                        "want to run untrusted catchup, use "
+                        "--force-untrusted-catchup.");
+                }
 
                 Json::Value catchupInfo;
                 result = catchup(app, cc, catchupInfo, archivePtr);
@@ -911,44 +957,16 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
 
             auto app = Application::create(clock, cfg, false);
             app->start();
-            auto const& lm = app->getLedgerManager();
-            auto const& hm = app->getHistoryManager();
+
             auto& io = clock.getIOContext();
             asio::io_context::work mainWork(io);
             LedgerNumHashPair authPair;
-            auto tryCheckpoint = [&](uint32_t seq, Hash h) {
-                if (hm.isLastLedgerInCheckpoint(seq))
-                {
-                    LOG_INFO(
-                        DEFAULT_LOG,
-                        "Found authenticated checkpoint hash {} for ledger {}",
-                        hexAbbrev(h), seq);
-                    authPair.first = seq;
-                    authPair.second = std::make_optional<Hash>(h);
-                }
-                else if (authPair.first != seq)
-                {
-                    authPair.first = seq;
-                    LOG_INFO(DEFAULT_LOG,
-                             "Ledger {} is not a checkpoint boundary, waiting.",
-                             seq);
-                }
-            };
-
-            if (startLedger != 0 && !startHash.empty())
-            {
-                Hash h = hexToBin256(startHash);
-                tryCheckpoint(startLedger, h);
-            }
 
             while (!(io.stopped() || authPair.second))
             {
                 clock.crank();
-                if (lm.isSynced())
-                {
-                    auto const& lhe = lm.getLastClosedLedgerHeader();
-                    tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
-                }
+                setAuthenticatedLedgerHashPair(app, authPair, startLedger,
+                                               startHash);
             }
             if (authPair.second)
             {
@@ -1183,7 +1201,7 @@ runOfflineInfo(CommandLineArgs const& args)
     CommandLine::ConfigOption configOption;
 
     return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        showOfflineInfo(configOption.getConfig());
+        showOfflineInfo(configOption.getConfig(), true);
         return 0;
     });
 }
@@ -1367,6 +1385,36 @@ int
 runVersion(CommandLineArgs const&)
 {
     std::cout << HCNET_CORE_VERSION << std::endl;
+#ifdef ENABLE_NEXT_PROTOCOL_VERSION_UNSAFE_FOR_PRODUCTION
+    std::cout << "rust version: " << rust_bridge::get_rustc_version().c_str()
+              << std::endl;
+
+    std::cout << "soroban-env-host: " << std::endl;
+
+    std::cout << "    package version: "
+              << rust_bridge::get_soroban_env_pkg_version().c_str()
+              << std::endl;
+
+    std::cout << "    git version: "
+              << rust_bridge::get_soroban_env_git_version().c_str()
+              << std::endl;
+
+    std::cout << "    interface version: "
+              << rust_bridge::get_soroban_env_interface_version() << std::endl;
+
+    std::cout << "    rs-hcnet-xdr:" << std::endl;
+
+    std::cout << "        package version: "
+              << rust_bridge::get_soroban_xdr_bindings_pkg_version().c_str()
+              << std::endl;
+    std::cout << "        git version: "
+              << rust_bridge::get_soroban_xdr_bindings_git_version().c_str()
+              << std::endl;
+    std::cout
+        << "        base XDR git version: "
+        << rust_bridge::get_soroban_xdr_bindings_base_xdr_git_version().c_str()
+        << std::endl;
+#endif
     return 0;
 }
 
@@ -1462,7 +1510,8 @@ runGenerateOrSimulateTxs(CommandLineArgs const& args, bool generate)
         if (!generate)
         {
             // Check if special `simulate` archive is present in the config
-            // If so, ensure we're getting historical data from it exclusively
+            // If so, ensure we're getting historical data from it
+            // exclusively
             if (found != config.HISTORY.end())
             {
                 auto simArchive = *found;
@@ -1510,8 +1559,8 @@ runGenerateOrSimulateTxs(CommandLineArgs const& args, bool generate)
         app->getWorkScheduler().executeWork<WorkSequence>(
             "download-simulate-seq", seq);
 
-        // Publish all simulated transactions to a simulated archive to avoid
-        // re-generating and signing them
+        // Publish all simulated transactions to a simulated archive to
+        // avoid re-generating and signing them
         if (generate)
         {
             publish(app);

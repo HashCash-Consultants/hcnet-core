@@ -11,8 +11,10 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "overlay/PeerDoor.h"
 #include "overlay/TCPPeer.h"
+#include "overlay/test/OverlayTestUtils.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"
@@ -113,7 +115,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         };
 
         // see if the transactions got propagated properly
-        simulation->crankUntil(checkSim, std::chrono::seconds(60), true);
+        simulation->crankUntil(checkSim, std::chrono::seconds(60), false);
 
         for (auto n : nodes)
         {
@@ -138,6 +140,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
     SECTION("transaction flooding")
     {
+        TransactionFramePtr testTransaction = nullptr;
         auto injectTransaction = [&](int i) {
             const int64 txAmount = 10000000;
 
@@ -149,12 +152,16 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             auto account = TestAccount{*inApp, sources[i]};
             auto tx1 = account.tx(
                 {createAccount(dest.getPublicKey(), txAmount)}, expectedSeq);
-
+            if (!testTransaction)
+            {
+                testTransaction = tx1;
+            }
             // this is basically a modified version of Peer::recvTransaction
             auto msg = tx1->toHcnetMessage();
             auto res = inApp->getHerder().recvTransaction(tx1, false);
             REQUIRE(res == TransactionQueue::AddResult::ADD_STATUS_PENDING);
-            inApp->getOverlayManager().broadcastMessage(msg);
+            inApp->getOverlayManager().broadcastMessage(msg, false,
+                                                        tx1->getFullHash());
         };
 
         auto ackedTransactions = [&](std::shared_ptr<Application> app) {
@@ -177,8 +184,9 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
         auto cfgGen2 = [&](int n) {
             auto cfg = getTestConfig(n);
-            // adjust delayed tx flooding
+            // adjust delayed tx flooding and how often to pull
             cfg.FLOOD_TX_PERIOD_MS = 10;
+            cfg.FLOOD_DEMAND_PERIOD_MS = std::chrono::milliseconds(10);
             return cfg;
         };
         SECTION("core")
@@ -194,6 +202,181 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 simulation = Topologies::core(4, .666f, Simulation::OVER_TCP,
                                               networkID, cfgGen2);
                 test(injectTransaction, ackedTransactions, true);
+            }
+            auto cfgGenPullMode = [&](int n) {
+                auto cfg = getTestConfig(n);
+                // adjust delayed tx flooding
+                cfg.FLOOD_TX_PERIOD_MS = 10;
+                // Using an unrealistically small tx set size
+                // leads to an unrealistic batching scheme of adverts/demands
+                // (i.e., no batching)
+                // While there's no strict requirement for batching,
+                // it seems more useful to test more realistic settings.
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 1000;
+                cfg.ENABLE_PULL_MODE = true;
+                return cfg;
+            };
+            SECTION("pull mode with 2 nodes")
+            {
+                // Limit the number of nodes to 2.
+                // This makes the process of flooding crystal clear.
+                int const numNodes = 2;
+
+                simulation =
+                    Topologies::core(numNodes, .666f, Simulation::OVER_LOOPBACK,
+                                     networkID, cfgGenPullMode);
+                auto advertCheck = [&](std::shared_ptr<Application> app) {
+                    if (!ackedTransactions(app))
+                    {
+                        return false;
+                    }
+
+                    // Check pull-mode metrics
+                    auto& om = app->getOverlayManager().getOverlayMetrics();
+                    auto advertsSent = om.mSendFloodAdvertMeter.count();
+                    auto advertsRecvd = om.mRecvFloodAdvertTimer.count();
+                    auto demandsSent = om.mSendFloodDemandMeter.count();
+                    auto hashesQueued =
+                        overlaytestutils::getAdvertisedHashCount(app);
+                    auto demandFulfilled =
+                        overlaytestutils::getFulfilledDemandCount(app);
+                    auto messagesUnfulfilled =
+                        overlaytestutils::getUnfulfilledDemandCount(app);
+
+                    LOG_DEBUG(
+                        DEFAULT_LOG,
+                        "Peer {}: sent {} adverts, queued {} codes, received "
+                        "{} adverts, sent {} demands, fulfilled {} demands, "
+                        "unfulfilled {} demands",
+                        app->getConfig().PEER_PORT, advertsSent, hashesQueued,
+                        advertsRecvd, demandsSent, demandFulfilled,
+                        messagesUnfulfilled);
+
+                    // There are only two peers.
+                    // Each should send one or more advert(s) with exactly (nbTx
+                    // / 2) hashes to each other, and demand & fulfill
+                    // demands(s). The number of demands may depend on how many
+                    // hashes are in one demand.
+
+                    bool res = true;
+                    res = res && advertsSent >= 1 && advertsRecvd >= 1;
+                    res = res && hashesQueued == (nbTx / 2);
+                    res = res && demandFulfilled >= 1 && demandsSent >= 1;
+                    res = res && messagesUnfulfilled == 0;
+
+                    return res;
+                };
+                test(injectTransaction, advertCheck, true);
+
+                SECTION("advertise same transaction after some time")
+                {
+                    for (auto const& node : nodes)
+                    {
+                        auto before =
+                            overlaytestutils::getAdvertisedHashCount(node);
+                        node->getOverlayManager().broadcastMessage(
+                            testTransaction->toHcnetMessage(), false,
+                            testTransaction->getFullHash());
+                        REQUIRE(before ==
+                                overlaytestutils::getAdvertisedHashCount(node));
+                    }
+
+                    // Now crank for some time and trigger cleanups
+                    auto numLedgers =
+                        nodes[0]->getConfig().MAX_SLOTS_TO_REMEMBER +
+                        nodes[0]->getLedgerManager().getLastClosedLedgerNum();
+                    simulation->crankUntil(
+                        [&] {
+                            return simulation->haveAllExternalized(numLedgers,
+                                                                   1);
+                        },
+                        numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+                        false);
+
+                    // Ensure old transaction gets re-broadcasted
+                    for (auto const& node : nodes)
+                    {
+                        auto before =
+                            overlaytestutils::getAdvertisedHashCount(node);
+                        node->getOverlayManager().broadcastMessage(
+                            testTransaction->toHcnetMessage(), false,
+                            testTransaction->getFullHash());
+
+                        REQUIRE(before + 1 ==
+                                overlaytestutils::getAdvertisedHashCount(node));
+                    }
+                }
+            }
+            SECTION("pull mode with 4 nodes")
+            {
+                int const numNodes = 4;
+
+                simulation =
+                    Topologies::core(numNodes, .666f, Simulation::OVER_TCP,
+                                     networkID, cfgGenPullMode);
+                auto advertCheck = [&](std::shared_ptr<Application> app) {
+                    if (!ackedTransactions(app))
+                    {
+                        return false;
+                    }
+
+                    // Check pull-mode metrics
+                    auto& om = app->getOverlayManager().getOverlayMetrics();
+                    auto advertsSent = om.mSendFloodAdvertMeter.count();
+                    auto advertsRecvd = om.mRecvFloodAdvertTimer.count();
+                    auto demandsSent = om.mSendFloodDemandMeter.count();
+                    auto hashesQueued =
+                        overlaytestutils::getAdvertisedHashCount(app);
+                    auto demandFulfilled =
+                        overlaytestutils::getFulfilledDemandCount(app);
+                    auto messagesUnfulfilled =
+                        overlaytestutils::getUnfulfilledDemandCount(app);
+
+                    LOG_DEBUG(
+                        DEFAULT_LOG,
+                        "Peer {}: sent {} adverts, queued {} codes, received "
+                        "{} adverts, sent {} demands, fulfilled {} demands, "
+                        "unfulfilled {} demands",
+                        app->getConfig().PEER_PORT, advertsSent, hashesQueued,
+                        advertsRecvd, demandsSent, demandFulfilled,
+                        messagesUnfulfilled);
+
+                    // There are four peers.
+                    // Each node starts with 25 txns.
+                    // For every node to get all the 100 txns,
+                    // every node has to advertise, demand, and fulfill demands
+                    // at least once.
+                    // No node should do so more than 3 * nbTx times.
+
+                    bool res = true;
+
+                    res = res && 1 <= advertsSent && advertsSent <= 3 * nbTx;
+                    res = res && 1 <= advertsRecvd && advertsRecvd <= 3 * nbTx;
+
+                    // If this node queued < 25 hashes and/or responded to < 25
+                    // demands, then no other node can obtain the 25 txns that
+                    // this node has.
+                    res = res && (nbTx / 4) <= hashesQueued;
+                    res = res && hashesQueued <= 3 * nbTx;
+                    res = res && (nbTx / 4) <= demandFulfilled;
+                    res = res && demandFulfilled <= 3 * nbTx;
+
+                    res = res && 1 <= demandsSent && demandsSent <= 3 * nbTx;
+
+                    // Each advert must contain at least one hash.
+                    res = res && advertsSent <= hashesQueued;
+
+                    // # demands fullfulled
+                    // <= # demands sent
+                    // <= # hashes sent
+                    // <= # hashes queued.
+                    res = res && demandFulfilled <= hashesQueued;
+
+                    res = res && messagesUnfulfilled == 0;
+
+                    return res;
+                };
+                test(injectTransaction, advertCheck, true);
             }
         }
 

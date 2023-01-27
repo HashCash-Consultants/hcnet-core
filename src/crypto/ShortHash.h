@@ -8,6 +8,8 @@
 #include "crypto/XDRHasher.h"
 #include "util/siphash.h"
 
+#include <sodium.h>
+
 namespace hcnet
 {
 
@@ -17,6 +19,7 @@ namespace hcnet
 namespace shortHash
 {
 void initialize();
+std::array<unsigned char, crypto_shorthash_KEYBYTES> getShortHashInitKey();
 #ifdef BUILD_TESTS
 void seed(unsigned int);
 #endif

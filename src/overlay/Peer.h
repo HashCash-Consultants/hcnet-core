@@ -10,7 +10,10 @@
 #include "medida/timer.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/HcnetXDR.h"
+#include "overlay/TxAdvertQueue.h"
+#include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
+#include "util/RandomEvictionCache.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
 
@@ -55,7 +58,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
 {
 
   public:
-    static constexpr uint32_t FIRST_VERSION_SUPPORTING_FLOW_CONTROL = 20;
     static constexpr uint32_t FIRST_VERSION_SUPPORTING_GENERALIZED_TX_SET = 23;
     static constexpr std::chrono::seconds PEER_SEND_MODE_IDLE_TIMEOUT =
         std::chrono::seconds(60);
@@ -63,10 +65,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::chrono::milliseconds(1);
     static constexpr std::chrono::nanoseconds PEER_METRICS_RATE_UNIT =
         std::chrono::seconds(1);
+    static constexpr uint32_t FIRST_VERSION_SUPPORTING_PULL_MODE = 24;
+
     // The reporting will be based on the previous
     // PEER_METRICS_WINDOW_SIZE-second time window.
     static constexpr std::chrono::seconds PEER_METRICS_WINDOW_SIZE =
         std::chrono::seconds(300);
+
+    bool peerKnowsHash(Hash const& hash);
+    void rememberHash(Hash const& hash, uint32_t ledgerSeq);
 
     typedef std::shared_ptr<Peer> pointer;
 
@@ -112,7 +119,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         medida::Timer mMessageDelayInAsyncWriteTimer;
         medida::Timer mOutboundQueueDelaySCP;
         medida::Timer mOutboundQueueDelayTxs;
+        medida::Timer mOutboundQueueDelayAdvert;
+        medida::Timer mOutboundQueueDelayDemand;
+        medida::Timer mAdvertQueueDelay;
+        medida::Timer mPullLatency;
 
+        uint64_t mDemandTimeouts;
         uint64_t mUniqueFloodBytesRecv;
         uint64_t mDuplicateFloodBytesRecv;
         uint64_t mUniqueFetchBytesRecv;
@@ -123,7 +135,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
         uint64_t mUniqueFetchMessageRecv;
         uint64_t mDuplicateFetchMessageRecv;
 
+        uint64_t mTxHashReceived;
+        uint64_t mTxDemandSent;
+
         VirtualClock::time_point mConnectedTime;
+
+        uint64_t mMessagesFulfilled;
+        uint64_t mBannedMessageUnfulfilled;
+        uint64_t mUnknownMessageUnfulfilled;
     };
 
     struct TimestampedMessage
@@ -141,16 +160,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         std::shared_ptr<HcnetMessage const> mMessage;
         VirtualClock::time_point mTimeEmplaced;
     };
-
-    // Does this peer want flow control enabled
-    enum class FlowControlState
-    {
-        ENABLED,
-        DISABLED,
-        DONT_KNOW
-    };
-
-    Peer::FlowControlState flowControlEnabled() const;
 
     Json::Value getFlowControlJsonInfo(bool compact) const;
     Json::Value getJsonInfo(bool compact) const;
@@ -185,7 +194,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // Outbound queues indexes by priority
     // Priority 0 - SCP messages
     // Priority 1 - transactions
-    std::array<std::deque<QueuedOutboundMessage>, 2> mOutboundQueues;
+    // Priority 2 - flood demands
+    // Priority 3 - flood adverts
+    std::array<std::deque<QueuedOutboundMessage>, 4> mOutboundQueues;
 
     // This methods drops obsolete load from the outbound queue
     void addMsgAndMaybeTrimQueue(std::shared_ptr<HcnetMessage const> msg);
@@ -228,7 +239,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
-    FlowControlState mFlowControlState;
     ReadingCapacity mCapacity;
 
     OverlayMetrics& getOverlayMetrics();
@@ -259,6 +269,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvSCPQuorumSet(HcnetMessage const& msg);
     void recvSCPMessage(HcnetMessage const& msg);
     void recvGetSCPState(HcnetMessage const& msg);
+    void recvFloodAdvert(HcnetMessage const& msg);
+    void recvFloodDemand(HcnetMessage const& msg);
 
     void sendHello();
     void sendAuth();
@@ -303,6 +315,28 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void maybeSendNextBatch();
 
+    bool mPullModeEnabled{false};
+    TxAdvertQueue mTxAdvertQueue;
+
+    // How many _hashes_ in total are queued?
+    // NB: Each advert & demand contains a _vector_ of tx hashes.
+    size_t mAdvertQueueTxHashCount{0};
+    size_t mDemandQueueTxHashCount{0};
+
+    // As of MIN_OVERLAY_VERSION_FOR_FLOOD_ADVERT, peers accumulate an _advert_
+    // of flood messages, then periodically flush the advert and await a
+    // _demand_ message with a list of flood messages to send. Adverts are
+    // typically smaller than full messages and batching them means we also
+    // amortize the authentication framing.
+    TxAdvertVector mTxHashesToAdvertise;
+    void flushAdvert();
+    VirtualTimer mAdvertTimer;
+    void startAdvertTimer();
+    // transaction hash -> ledger number
+    RandomEvictionCache<Hash, uint32_t> mAdvertHistory;
+
+    bool mShuttingDown{false};
+
   public:
     Peer(Application& app, PeerRole role);
 
@@ -311,6 +345,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         return mApp;
     }
+
+    void shutdown();
+    void clearBelow(uint32_t ledgerSeq);
 
     std::string msgSummary(HcnetMessage const& hcnetMsg);
     void sendGetTxSet(uint256 const& setID);
@@ -382,12 +419,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mPeerMetrics;
     }
 
-    bool
-    isFlowControlled() const
-    {
-        return mFlowControlState == Peer::FlowControlState::ENABLED;
-    }
-
     std::string const& toString();
     virtual std::string getIP() const = 0;
 
@@ -417,6 +448,17 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual ~Peer()
     {
     }
+
+    bool isPullModeEnabled() const;
+    void sendTxDemand(TxDemandVector&& demands);
+    void fulfillDemand(FloodDemand const& dmd);
+    void queueTxHashToAdvertise(Hash const& hash);
+    void queueTxHashAndMaybeTrim(Hash const& hash);
+    TxAdvertQueue&
+    getTxAdvertQueue()
+    {
+        return mTxAdvertQueue;
+    };
 
     friend class LoopbackPeer;
 };

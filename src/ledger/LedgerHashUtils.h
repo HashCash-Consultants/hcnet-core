@@ -148,6 +148,10 @@ template <> class hash<hcnet::LedgerKey>
             hcnet::hashMix(
                 res, hcnet::shortHash::xdrComputeHash(lk.contractData().key));
             break;
+        case hcnet::CONTRACT_CODE:
+            hcnet::hashMix(
+                res, std::hash<hcnet::uint256>()(lk.contractCode().hash));
+            break;
         case hcnet::CONFIG_SETTING:
             hcnet::hashMix(
                 res, std::hash<int32_t>()(lk.configSetting().configSettingID));

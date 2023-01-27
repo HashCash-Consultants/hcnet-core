@@ -5,6 +5,7 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "catchup/AssumeStateWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -27,6 +28,8 @@
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/OperationFrame.h"
+#include "transactions/TransactionFrameBase.h"
+#include "transactions/TransactionMetaFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Fs.h"
@@ -41,6 +44,8 @@
 
 #include <fmt/format.h>
 
+#include "xdr/Hcnet-ledger.h"
+#include "xdr/Hcnet-transaction.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 
@@ -343,10 +348,22 @@ LedgerManagerImpl::loadLastKnownLedger(function<void()> handler)
                     auto header = ltx.loadHeader();
                     if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
                     {
-                        mApp.getBucketManager().assumeState(
-                            has, header.current().ledgerVersion);
-                        CLOG_INFO(Ledger, "Assumed bucket-state for LCL: {}",
-                                  ledgerAbbrev(header.current()));
+                        auto assumeStateWork =
+                            mApp.getWorkScheduler()
+                                .executeWork<AssumeStateWork>(
+                                    has, header.current().ledgerVersion);
+                        if (assumeStateWork->getState() ==
+                            BasicWork::State::WORK_SUCCESS)
+                        {
+                            CLOG_INFO(Ledger,
+                                      "Assumed bucket-state for LCL: {}",
+                                      ledgerAbbrev(header.current()));
+                        }
+                        else
+                        {
+                            // Work should only fail during graceful shutdown
+                            releaseAssert(mApp.isStopping());
+                        }
                     }
                     advanceLedgerPointers(header.current());
                 }
@@ -556,6 +573,10 @@ uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
     uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
+    if (ct == 0)
+    {
+        return 0;
+    }
     uint64_t now = mApp.timeNow();
     return (now > ct) ? (now - ct) : 0;
 }
@@ -680,7 +701,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         // this method throw.
         ledgerCloseMeta = std::make_unique<LedgerCloseMetaFrame>(
             header.current().ledgerVersion);
-        ledgerCloseMeta->txProcessing().reserve(txSet->sizeTx());
+        ledgerCloseMeta->reserveTxProcessing(txSet->sizeTx());
         ledgerCloseMeta->populateTxSet(*txSet);
     }
 
@@ -694,16 +715,17 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     prefetchTxSourceIds(txs);
     processFeesSeqNums(txs, ltx, *txSet, ledgerCloseMeta);
 
-    TransactionResultSet txResultSet;
-    txResultSet.results.reserve(txs.size());
-    applyTransactions(*txSet, txs, ltx, txResultSet, ledgerCloseMeta);
+    TransactionResultSetFrame txResultSetFrame(
+        ltx.loadHeader().current().ledgerVersion);
+    txResultSetFrame.reserveResults(txs.size());
+    applyTransactions(*txSet, txs, ltx, txResultSetFrame, ledgerCloseMeta);
     if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
     {
         storeTxSet(mApp.getDatabase(), ltx.loadHeader().current().ledgerSeq,
                    *txSet);
     }
 
-    ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
+    ltx.loadHeader().current().txSetResultHash = txResultSetFrame.getXDRHash();
 
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
@@ -1095,9 +1117,9 @@ LedgerManagerImpl::processFeesSeqNums(
             LedgerEntryChanges changes = ltxTx.getChanges();
             if (ledgerCloseMeta)
             {
-                auto& tp = ledgerCloseMeta->txProcessing();
-                tp.emplace_back();
-                tp.back().feeProcessing = changes;
+                ledgerCloseMeta->pushTxProcessingEntry();
+                ledgerCloseMeta->setLastTxProcessingFeeProcessingChanges(
+                    changes);
             }
             // Note to future: when we eliminate the txhistory and txfeehistory
             // tables, the following step can be removed.
@@ -1188,7 +1210,7 @@ LedgerManagerImpl::prefetchTransactionData(
 void
 LedgerManagerImpl::applyTransactions(
     TxSetFrame const& txSet, std::vector<TransactionFrameBasePtr> const& txs,
-    AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
+    AbstractLedgerTxn& ltx, TransactionResultSetFrame& txResultSetFrame,
     std::unique_ptr<LedgerCloseMetaFrame> const& ledgerCloseMeta)
 {
     ZoneNamedN(txsZone, "applyTransactions", true);
@@ -1214,29 +1236,26 @@ LedgerManagerImpl::applyTransactions(
     {
         ZoneNamedN(txZone, "applyTransaction", true);
         auto txTime = mTransactionApply.TimeScope();
-        TransactionMeta tm(2);
+        TransactionMetaFrame tm(ltx.loadHeader().current().ledgerVersion);
         CLOG_DEBUG(Tx, " tx#{} = {} ops={} txseq={} (@ {})", index,
                    hexAbbrev(tx->getContentsHash()), tx->getNumOperations(),
                    tx->getSeqNum(),
                    mApp.getConfig().toShortString(tx->getSourceID()));
         tx->apply(mApp, ltx, tm);
-
+        tm.setTxResult(tx->getResult());
+        tm.finalizeHashes();
         TransactionResultPair results;
         results.transactionHash = tx->getContentsHash();
         results.result = tx->getResult();
 
-        // First gather the TransactionResultPair into the TxResultSet for
-        // hashing into the ledger header.
-        txResultSet.results.emplace_back(results);
+        txResultSetFrame.pushMetaAndResultPair(tm.getXDR(), results);
 
         // Then potentially add that TRP and its associated TransactionMeta
         // into the associated slot of any LedgerCloseMeta we're collecting.
         if (ledgerCloseMeta)
         {
-            TransactionResultMeta& trm =
-                ledgerCloseMeta->txProcessing().at(index);
-            trm.txApplyProcessing = tm;
-            trm.result = results;
+            ledgerCloseMeta->setTxProcessingMetaAndResultPair(
+                tm.getXDR(), std::move(results), index);
         }
 
         // Then finally store the results and meta into the txhistory table.
@@ -1252,8 +1271,12 @@ LedgerManagerImpl::applyTransactions(
         if (mApp.getConfig().MODE_STORES_HISTORY_MISC)
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm,
-                             txResultSet);
+            // See bug https://github.com/hcnet/hcnet-core/issues/3555 -- we
+            // need to decide if we are going to keep storing the V1 txResultSet
+            // here, or want to store txResultSetV2 or something else, when
+            // running on post-soroban ledgers.
+            storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm.getXDR(),
+                             txResultSetFrame.getV1XDR());
         }
     }
 

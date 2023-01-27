@@ -1430,7 +1430,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMeta txm(2);
+                                TransactionMetaFrame txm(
+                                    ltx.loadHeader().current().ledgerVersion);
                                 REQUIRE(
                                     insideSignerTx->checkValid(ltx, 0, 0, 0));
                                 REQUIRE(insideSignerTx->apply(*app, ltx, txm));
@@ -1448,7 +1449,8 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                TransactionMeta txm(2);
+                                TransactionMetaFrame txm(
+                                    ltx.loadHeader().current().ledgerVersion);
                                 REQUIRE(
                                     outsideSignerTx->checkValid(ltx, 0, 0, 0));
                                 REQUIRE(outsideSignerTx->apply(*app, ltx, txm));
@@ -2377,11 +2379,12 @@ TEST_CASE_VERSIONS("txenvelope", "[tx][envelope]")
 
                     auto r = closeLedgerOn(*app, 1, 2, 2016, {tx1, tx2});
 
-                    REQUIRE(tx1->getResultCode() == txSUCCESS);
-                    REQUIRE(tx2->getResultCode() == txFAILED);
+                    checkTx(0, r, txSUCCESS);
+                    checkTx(1, r, txFAILED);
                     REQUIRE(PaymentOpFrame::getInnerCode(
-                                getFirstResult(*tx2)) == PAYMENT_SUCCESS);
-                    REQUIRE(tx2->getOperations()[1]->getResultCode() ==
+                                r[1].first.result.result.results()[0]) ==
+                            PAYMENT_SUCCESS);
+                    REQUIRE(r[1].first.result.result.results()[1].code() ==
                             opBAD_AUTH);
                 });
             }

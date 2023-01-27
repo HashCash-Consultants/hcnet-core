@@ -41,6 +41,7 @@ compile_commands.json
 
 /src/archtmp-*
 /src/main/HcnetCoreVersion.cpp
+/src/main/XDRFilesSha256.cpp
 /src/protocol-curr/xdr/*.h
 /src/protocol-next/xdr/*.h
 /Makefile
@@ -89,6 +90,7 @@ min-testcases/
 /src/rust/bin
 /src/rust/target
 /target
+/ra-target
 /src/rust/RustBridge.cpp
 /src/rust/RustBridge.h
 /src/rust/.crates.toml
