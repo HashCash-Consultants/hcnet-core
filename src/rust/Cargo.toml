@@ -17,7 +17,7 @@ base64 = "=0.13.1"
 rustc-simple-version = "=0.1.0"
 # NB: this must match the same rand version used by soroban (but the tooling
 # will complain if it does not match)
-rand = "=0.8.5"
+rand = "=0.9.3"
 
 petgraph = "=0.6.4"
 toml = "=0.7.8"
